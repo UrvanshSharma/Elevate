@@ -1,0 +1,20 @@
+{
+  "name": "elevate",
+  "version": "1.1.0",
+  "description": "Student placement-readiness portal with portfolio management, resume tracking, and interview preparation.",
+  "private": true,
+  "scripts": {
+    "test": "node --test tests/app.test.js",
+    "check": "node --check js/data.js js/utils.js js/auth.js js/app.js tests/app.test.js",
+    "start": "npx -y serve . -l 3000",
+    "dev": "npx -y serve . -l 3000"
+  },
+  "keywords": [
+    "career-development",
+    "placement-portal",
+    "vanilla-js",
+    "student-portfolio"
+  ],
+  "author": "Elevate Team",
+  "license": "MIT"
+}
