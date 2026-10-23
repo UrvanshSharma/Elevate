@@ -10,7 +10,9 @@
 - [Key Features](#key-features)
 - [Technology Stack](#technology-stack)
 - [Architecture & Directory Structure](#architecture--directory-structure)
+- [Prerequisites](#prerequisites)
 - [Getting Started & Running Locally](#getting-started--running-locally)
+- [Troubleshooting & Common Issues](#troubleshooting--common-issues)
 - [Automated Testing](#automated-testing)
 - [Default Demo Credentials](#default-demo-credentials)
 - [Environment Variables & Security](#environment-variables--security)
@@ -84,23 +86,113 @@ Elevate/
 
 ---
 
+## Prerequisites
+
+Before running the project locally, ensure you have:
+- A modern web browser (Google Chrome, Microsoft Edge, Mozilla Firefox, or Apple Safari).
+- *(Recommended)* **[Node.js](https://nodejs.org/)** (v18.0.0 or higher) and **npm** for running the local server and test suite.
+- *(Optional)* **Git** for cloning the repository.
+
+---
+
 ## Getting Started & Running Locally
 
-### Option 1: Direct File Launch (No Setup Required)
+### Option 1: Development Server via npm (Recommended)
 
-1. Open the project folder in your file explorer.
-2. Double-click **`index.html`** to launch directly in any modern browser (Chrome, Edge, Firefox, Safari).
+This method serves the application over HTTP on `http://localhost:3000` using a lightweight static server.
 
-### Option 2: Using the Development Server
-
-If Node.js is installed on your system, you can run a local development server:
+#### Step 1: Open Terminal & Navigate to Project Directory
+Ensure your terminal's current working directory is inside the `Elevate` folder containing `package.json`:
 
 ```bash
-# Start a lightweight local static server at http://localhost:3000
-npm start
-# or
-npm run dev
+# Clone the repository (if not already done)
+git clone https://github.com/UrvanshSharma/Elevate.git
+
+# Navigate into the project folder (CRITICAL)
+cd Elevate
 ```
+
+> [!IMPORTANT]
+> Make sure your terminal is inside the `Elevate` directory. If you are in the parent workspace folder, running `npm start` will fail with an `ENOENT` error. Run `cd Elevate` first.
+
+#### Step 2: Install Dependencies (Optional)
+```bash
+npm install
+```
+
+#### Step 3: Launch the Development Server
+```bash
+npm run dev
+# or
+npm start
+```
+
+This starts a local static server at `http://localhost:3000`.
+
+#### Step 4: Open in Your Browser
+Open [http://localhost:3000](http://localhost:3000) in your web browser.
+
+---
+
+### Option 2: Direct File Launch (Zero Setup)
+
+Because Elevate is built with pure Vanilla HTML, CSS, and JavaScript, it can be launched directly without running any Node.js processes or build tools:
+
+1. Open your file explorer and navigate to the `Elevate/` folder.
+2. Double-click **`index.html`** (or right-click `index.html` > **Open with** > your preferred browser).
+
+---
+
+### Option 3: Visual Studio Code "Live Server"
+
+If you work in VS Code:
+1. Open the `Elevate` directory in VS Code (`File` > `Open Folder...`).
+2. Install the **Live Server** extension (by Ritwick Dey).
+3. Right-click **`index.html`** in the file explorer and select **Open with Live Server**.
+4. The page will open automatically at `http://127.0.0.1:5500/index.html`.
+
+---
+
+### Option 4: Python Built-In HTTP Server
+
+If you have Python 3 installed and prefer not to use npm:
+
+```bash
+cd Elevate
+python -m http.server 3000
+# or on macOS/Linux:
+python3 -m http.server 3000
+```
+Then navigate to [http://localhost:3000](http://localhost:3000).
+
+---
+
+## Troubleshooting & Common Issues
+
+### Issue 1: `npm error enoent Could not read package.json`
+**Symptom:**
+```text
+npm error code ENOENT
+npm error syscall open
+npm error path ...\package.json
+npm error errno -4058
+npm error enoent Could not read package.json: Error: ENOENT: no such file or directory, open '...\package.json'
+```
+- **Cause:** You ran `npm run dev` or `npm start` from a parent folder (e.g., `E:\Projects\Elevate`) rather than inside the project directory where `package.json` lives.
+- **Solution:** Change directory into the `Elevate` folder before running npm commands:
+  ```bash
+  cd Elevate
+  npm run dev
+  ```
+  *(You can check your current folder using `pwd` on Linux/macOS or `Get-Location` on Windows PowerShell).*
+
+### Issue 2: Port 3000 Already in Use (`EADDRINUSE`)
+- **Cause:** Another process is already utilizing port 3000.
+- **Solution:** Specify an alternative port:
+  ```bash
+  npx serve . -l 3001
+  ```
+  Or kill the existing process occupying port 3000.
 
 ---
 

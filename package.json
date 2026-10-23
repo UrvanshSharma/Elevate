@@ -16,5 +16,8 @@
     "student-portfolio"
   ],
   "author": "Elevate Team",
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "gsap": "^3.15.0"
+  }
 }
