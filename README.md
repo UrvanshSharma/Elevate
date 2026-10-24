@@ -1,6 +1,6 @@
 # Elevate — Student Career & Placement Portal
 
-> A unified student placement-readiness platform with portfolio management, resume versioning, verified credentials, peer interview logs, study resource packs, and campus drive tracking built with pure **HTML5, CSS3, and Vanilla JavaScript**.
+> A unified student placement-readiness ecosystem with portfolio management, AI resume versioning, verified credentials, peer interview logs, study resource packs, and AI-powered campus drive tracking built with **Node.js, Express.js, HTML5, CSS3, Vanilla JavaScript, and Google Gemini AI**.
 
 ---
 
@@ -12,7 +12,9 @@
 - [Architecture & Directory Structure](#architecture--directory-structure)
 - [Prerequisites](#prerequisites)
 - [Getting Started & Running Locally](#getting-started--running-locally)
-- [Troubleshooting & Common Issues](#troubleshooting--common-issues)
+- [REST API Endpoints](#rest-api-endpoints)
+- [Google Gemini AI Live Search & Resume Extraction](#google-gemini-ai-live-search--resume-extraction)
+- [Interactive UI & Design Systems](#interactive-ui--design-systems)
 - [Automated Testing](#automated-testing)
 - [Default Demo Credentials](#default-demo-credentials)
 - [Environment Variables & Security](#environment-variables--security)
@@ -22,26 +24,34 @@
 
 ## Overview
 
-**Elevate** is a centralized client-side web application designed to help university students organize and accelerate their campus placement journey from a single, responsive dashboard. It addresses the common fragmentation of placement preparation by bringing together:
+**Elevate** is a centralized web ecosystem designed to help university engineering students (specifically the **2026 graduating batch**) organize and accelerate their campus placement journey from a single, responsive dashboard. It solves the fragmentation of placement preparation by bringing together:
 
-1. **Student Placement Profile**: Displays CGPA, graduation year, academic department, career goals, and technical skill cloud.
-2. **Resume & Asset Management**: Versioning and tracking of role-specific resumes (SDE, Full-Stack, Frontend) alongside verified course certifications.
-3. **Featured Project Portfolio**: Showcase of practical software projects with tech stack badges and status indicators.
-4. **Peer Interview Hub**: Crowd-sourced logs of real technical interview rounds, difficulty ratings, and key takeaways.
-5. **Curated Learning Resources**: Fast-track revision packs covering Data Structures & Algorithms, REST APIs, and Campus Aptitude.
-6. **Campus Drive Tracker**: Live filtering and search of upcoming company drives, eligibility thresholds (CGPA, tech stacks), and application deadlines.
-7. **Client-Side Authentication**: Persistent user registration, secure session state, and user profile management using the browser's `localStorage` API.
+1. **Student Placement Profile**: Displays student name, roll number, department, CGPA, graduation year (`<Branch> | Graduating <Year>`), personalized career goals, and a dynamic technical skills cloud.
+2. **Resume & Asset Management**: Versioning and tracking of role-specific resumes (SDE, Full-Stack, Frontend) with AI-powered resume extraction and instant PDF download.
+3. **Interactive Certifications Stack**: Displays the top credential on front with a subtle `+N, Hover to reveal ↓` drawer that expands smoothly on hover/tap without blurring or edge clipping.
+4. **Featured Project Portfolio**: Live showcase of practical software projects with tech stack badges, status indicators, and automatic resume extraction.
+5. **Peer Interview Hub**: Crowdsourced logs of real technical interview rounds, company difficulty ratings, and key preparation takeaways.
+6. **Curated Learning Resources**: Fast-track revision packs covering Data Structures & Algorithms, REST APIs, and Campus Aptitude.
+7. **Live Campus Placement Drives**: Verified hiring drives fetched dynamically via the **Google Gemini AI API** specifically for 2026 batch candidates with direct application links.
+8. **Client-Side Authentication**: Persistent user registration, secure session state, and user profile management using the browser's `localStorage` API.
+9. **Node.js & Express.js Backend**: Robust server delivering static assets, resume file extraction, re-parsing, and system health REST endpoints.
 
 ---
 
 ## Key Features
 
-- **Zero-Dependency Core**: Runs out-of-the-box in any modern web browser without requiring Node.js, compilation, or backend servers.
-- **Modular Architecture**: Clean separation of data store (`data.js`), pure utilities (`utils.js`), dashboard rendering (`dashboard.js`), and session authentication (`auth.js`).
+- **Node.js & Express.js Backend**: Lightweight HTTP server (`server.js`) delivering static files, health checks, multipart file uploads, and resume re-parsing on port 3000.
+- **AI-Powered Resume Parsing**: Uses `multer` and `pdf-parse` to extract text from resumes, sending it to **Google Gemini AI** to extract technical skills for the profile and projects for the portfolio.
+- **One-Click AI Re-Analysis**: Re-scans active resumes directly from the `uploads/` directory with a single click, refreshing skills, projects, and certifications without re-uploading.
+- **Instant Resume Download**: Securely downloads the active student resume PDF (`/api/resume/download`) with proper `Content-Disposition` headers.
+- **Interactive Accordion Drawer for Certifications**: Shows the top-most certification on front with a subtle indicator (`+3, Hover to reveal ↓`); expands smoothly downwards on hover or tap to reveal all verified credentials.
+- **Razor-Sharp Hover Elevations (Zero Blur)**: Uses pure `transform: translateY(-4px)` with subpixel anti-aliasing matching the jobs section, completely eliminating text blur and edge clipping.
+- **Live Gemini AI Grounding**: Two-tier placement search engine using `gemini-flash-latest` with Google Search Grounding and rapid JSON fallback.
+- **Custom Branding**: Integrated custom brand logo (`css/logo.png`) and SVG icons across the navigation bar, footer, and browser favicon.
+- **Registration with Graduation Year & Goals**: Captures graduation year and targeted career goals during signup and presents them on the student profile.
 - **Input Sanitization & Security**: All dynamic HTML outputs are sanitized via `escapeHtml()` to protect against Cross-Site Scripting (XSS).
-- **Password & Email Validation**: Enforces strong passwords (minimum 8 characters, uppercase letter, number, and special character) and RFC-compliant email verification.
-- **Glassmorphic Design System**: Custom modern UI styling with HSL/HEX CSS custom properties, backdrop filters, responsive layout, and dark-mode navigation pills.
-- **Full Test Coverage**: Built-in test suite powered by Node.js native test runner (`node:test`) verifying schema integrity, validation logic, and DOM element contracts.
+- **Strong Password & Email Validation**: Enforces complexity rules (minimum 8 characters, uppercase letter, number, and special character) and RFC-compliant email verification.
+- **Full Test Coverage**: 26 automated test cases powered by Node.js native test runner (`node:test`) verifying schema integrity, validation logic, DOM contracts, and Express server routes.
 
 ---
 
@@ -49,11 +59,16 @@
 
 | Layer | Technology | Details |
 | :--- | :--- | :--- |
+| **Backend Runtime** | Node.js (v18+) | Server-side JavaScript runtime for hosting, testing, and dev tooling |
+| **Web Server** | Express.js (^5.3.0) | Minimalist web framework delivering static files and REST API routes |
+| **File Uploads** | Multer (^2.5.0) | Memory-buffered multipart form data handling for resume documents |
+| **Document Parser** | pdf-parse (1.1.1) | Fast extraction of text from binary PDF resume buffers |
 | **Markup** | HTML5 | Semantic HTML (`<header>`, `<aside>`, `<main>`, `<section>`) with ARIA accessibility |
-| **Styling** | Vanilla CSS3 & Bootstrap 5.3 CDN | Custom design tokens, glassmorphism, responsive grid |
+| **Styling** | Vanilla CSS3 & Bootstrap 5.3 CDN | Custom design tokens, glassmorphism, responsive grid, zero hover blur |
 | **Logic** | Vanilla JavaScript (ES6+) | Modular architecture with safe browser globals & CommonJS support |
-| **Persistence** | Browser `localStorage` API | Persists user accounts and active sessions |
-| **Testing** | Node.js Test Runner (`node:test`) | Fast, native zero-dependency automated unit and integration tests |
+| **AI Integration** | Google Gemini AI API | Generative AI models (`gemini-flash-latest` & `gemini-3.5-flash-lite`) |
+| **Persistence** | Browser `localStorage` API | Persists user accounts, sessions, skills, projects, and live drive caches |
+| **Testing** | Node.js Test Runner (`node:test`) | Zero-dependency automated unit and integration tests (27 passing tests) |
 | **Typography** | Google Fonts | Inter (`400`, `500`, `600`, `700`, `800`) |
 
 ---
@@ -62,166 +77,172 @@
 
 ```
 Elevate/
-├── .gitignore               # Ignores OS metadata, editor settings, and temporary files
-├── package.json             # Development scripts (tests, syntax check, local server)
-├── README.md                # Platform documentation and developer guide
-├── index.html               # Main application shell with semantic sections & auth modal
+├── server.js                # Node.js & Express.js server (serves app, live drives proxy, resume AI & download)
+├── package.json             # Dependencies (express, multer, pdf-parse) and scripts
+├── .env                     # Local environment variables & Gemini API key (.gitignored)
+├── .env.example             # Clean template for environment configuration
+├── .gitignore               # Ignored files (node_modules, uploads, .env)
+├── README.md                # Project documentation and developer instructions
+├── index.html               # Main application shell with Landing & Dashboard views
 ├── css/
-│   └── styles.css           # Design tokens, glassmorphic cards, navbar avatar, modal overrides
+│   ├── logo.png             # Elevate official brand logo & browser favicon
+│   ├── styles.css           # Design tokens, editorial theme, cards, navigation, animations
+│   └── stroke-text.css      # StrokeText SVG glyph animation styling
 ├── js/
 │   ├── data.js              # ElevateData: Seed datasets, default profiles, storage keys
-│   ├── utils.js             # ElevateUtils: Pure functions (XSS escaping, CGPA format, regex validators)
-│   ├── auth.js              # ElevateAuth: LocalStorage authentication, session state, modal tabs
-│   └── app.js               # ElevateApp: Main application rendering, search filtering, and bootstrap
+│   ├── utils.js             # ElevateUtils: Pure functions (XSS escaping, CGPA format, regex)
+│   ├── stroke-text.js       # StrokeText: Dynamic SVG stroke drawing & GSAP fill reveals
+│   ├── auth.js              # ElevateAuth: LocalStorage authentication, session state, onboarding
+│   └── app.js               # ElevateApp: View switcher, live drives sync, DOM rendering, accordion stacks
+├── scripts/
+│   └── test-gemini.js       # CLI test script for Gemini API models and prompts (reads .env)
+├── uploads/
+│   └── Urvansh.pdf          # Active student resume for re-analysis & instant download
 └── tests/
-    └── app.test.js          # Automated unit & DOM contract test suite
+    └── app.test.js          # Automated unit, DOM contract, and Express server test suite (27 tests)
 ```
-
-### Module Responsibilities
-
-- **`js/data.js` (`ElevateData`)**: Encapsulates seed data (companies, interview logs, projects, study resources) and storage keys.
-- **`js/utils.js` (`ElevateUtils`)**: Provides pure, side-effect-free helpers such as `escapeHtml`, `formatCgpa`, `isValidEmail`, `isValidPassword`, and `getUserInitials`.
-- **`js/auth.js` (`ElevateAuth`)**: Encapsulates sign-in, user registration, localStorage session caching, and avatar dropdown interactions.
-- **`js/app.js` (`ElevateApp`)**: Serves as the primary application module, managing DOM section rendering, company drive filtering, resume uploads, and bootstrap orchestration on `DOMContentLoaded`.
 
 ---
 
 ## Prerequisites
 
 Before running the project locally, ensure you have:
+- **[Node.js](https://nodejs.org/)** (v18.0.0 or higher) and **npm** installed.
 - A modern web browser (Google Chrome, Microsoft Edge, Mozilla Firefox, or Apple Safari).
-- *(Recommended)* **[Node.js](https://nodejs.org/)** (v18.0.0 or higher) and **npm** for running the local server and test suite.
-- *(Optional)* **Git** for cloning the repository.
+- *(Optional)* A **Google Gemini API Key** for real-time live placement drive search and resume parsing.
 
 ---
 
 ## Getting Started & Running Locally
 
-### Option 1: Development Server via npm (Recommended)
-
-This method serves the application over HTTP on `http://localhost:3000` using a lightweight static server.
-
-#### Step 1: Open Terminal & Navigate to Project Directory
-Ensure your terminal's current working directory is inside the `Elevate` folder containing `package.json`:
-
+### Step 1: Open Terminal & Navigate to Project Directory
 ```bash
 # Clone the repository (if not already done)
 git clone https://github.com/UrvanshSharma/Elevate.git
 
-# Navigate into the project folder (CRITICAL)
+# Navigate into the project folder
 cd Elevate
 ```
 
-> [!IMPORTANT]
-> Make sure your terminal is inside the `Elevate` directory. If you are in the parent workspace folder, running `npm start` will fail with an `ENOENT` error. Run `cd Elevate` first.
-
-#### Step 2: Install Dependencies (Optional)
+### Step 2: Install Dependencies
 ```bash
 npm install
 ```
 
-#### Step 3: Launch the Development Server
+### Step 3: Configure Environment & Gemini API Key (Optional for Live AI Features)
+Copy the example environment template and add your Gemini API Key:
 ```bash
-npm run dev
-# or
+cp .env.example .env
+```
+Edit `.env`:
+```env
+GEMINI_API_KEY="YOUR_ACTUAL_GEMINI_API_KEY"
+PORT=3000
+```
+*(All API keys are kept strictly on the backend inside `.env`. No keys are ever exposed in client-side JavaScript or browser network calls.)*
+
+### Step 4: Launch the Server
+```bash
 npm start
+# or for development:
+npm run dev
 ```
 
-This starts a local static server at `http://localhost:3000`.
-
-#### Step 4: Open in Your Browser
-Open [http://localhost:3000](http://localhost:3000) in your web browser.
-
----
-
-### Option 2: Direct File Launch (Zero Setup)
-
-Because Elevate is built with pure Vanilla HTML, CSS, and JavaScript, it can be launched directly without running any Node.js processes or build tools:
-
-1. Open your file explorer and navigate to the `Elevate/` folder.
-2. Double-click **`index.html`** (or right-click `index.html` > **Open with** > your preferred browser).
-
----
-
-### Option 3: Visual Studio Code "Live Server"
-
-If you work in VS Code:
-1. Open the `Elevate` directory in VS Code (`File` > `Open Folder...`).
-2. Install the **Live Server** extension (by Ritwick Dey).
-3. Right-click **`index.html`** in the file explorer and select **Open with Live Server**.
-4. The page will open automatically at `http://127.0.0.1:5500/index.html`.
-
----
-
-### Option 4: Python Built-In HTTP Server
-
-If you have Python 3 installed and prefer not to use npm:
-
-```bash
-cd Elevate
-python -m http.server 3000
-# or on macOS/Linux:
-python3 -m http.server 3000
-```
-Then navigate to [http://localhost:3000](http://localhost:3000).
-
----
-
-## Troubleshooting & Common Issues
-
-### Issue 1: `npm error enoent Could not read package.json`
-**Symptom:**
+The Express server will start up:
 ```text
-npm error code ENOENT
-npm error syscall open
-npm error path ...\package.json
-npm error errno -4058
-npm error enoent Could not read package.json: Error: ENOENT: no such file or directory, open '...\package.json'
+Server is running at http://localhost:3000
 ```
-- **Cause:** You ran `npm run dev` or `npm start` from a parent folder (e.g., `E:\Projects\Elevate`) rather than inside the project directory where `package.json` lives.
-- **Solution:** Change directory into the `Elevate` folder before running npm commands:
-  ```bash
-  cd Elevate
-  npm run dev
-  ```
-  *(You can check your current folder using `pwd` on Linux/macOS or `Get-Location` on Windows PowerShell).*
 
-### Issue 2: Port 3000 Already in Use (`EADDRINUSE`)
-- **Cause:** Another process is already utilizing port 3000.
-- **Solution:** Specify an alternative port:
-  ```bash
-  npx serve . -l 3001
-  ```
-  Or kill the existing process occupying port 3000.
+### Step 5: Open in Your Browser
+Visit [http://localhost:3000](http://localhost:3000) in your web browser.
+
+---
+
+## REST API Endpoints
+
+The Express backend (`server.js`) provides the following REST API endpoints:
+
+| Method | Endpoint | Description | Request Format | Response Format |
+| :--- | :--- | :--- | :--- | :--- |
+| `GET` | `/` | Serves the main `index.html` application shell | None | `text/html` |
+| `GET` | `/api/health` | Server health check and diagnostics | None | `{"status":"ok","message":"Elevate server is running smoothly"}` |
+| `GET` | `/api/drives/live` | Live 2026 Campus Placement Drives (proxies Gemini AI using server `.env`) | None | `{"status":"ok","source":"gemini","drives":[...]}` |
+| `POST` | `/api/resume/parse` | Upload resume and extract skills, projects & certifications | Multipart form (`resume` file) | `{"status":"ok","filename":"...","skills":[...],"projects":[...],"certifications":[...]}` |
+| `POST` | `/api/resume/reparse` | Re-analyze active resume saved in `uploads/` | None | `{"status":"ok","filename":"...","skills":[...],"projects":[...],"certifications":[...]}` |
+| `GET` | `/api/resume/download` | Download active student resume PDF | None | Binary PDF file (`Content-Disposition: attachment`) |
+| `GET` | `/css/*` | Serves modular CSS stylesheets | None | `text/css` |
+| `GET` | `/js/*` | Serves modular JavaScript files | None | `application/javascript` |
+
+---
+
+## Google Gemini AI Live Search & Resume Extraction
+
+Elevate leverages Google Gemini AI across two core capabilities:
+
+1. **Live 2026 Campus Placement Drives**:
+   - Queries `gemini-flash-latest` with real-time Google Search Grounding to verify genuine, currently active 2026 batch hiring drives across India.
+   - Enforces genuine deadlines, stipend/salary packages, tech stack requirements, and direct application links.
+   - Automatically updates the **Placement Drives & Eligibility** section with a live status badge (`LIVE (Gemini AI • HH:MM)`).
+   - Falls back gracefully to `gemini-3.5-flash-lite` in structured JSON mode if search quota is exceeded.
+
+2. **Resume Understanding & Portfolio Generation**:
+   - Extracts clean text from uploaded PDF/DOCX/TXT resumes.
+   - Formulates a structured schema prompt requesting `{ skills: [], projects: [], certifications: [] }`.
+   - Automatically populates the student profile's skill cloud, featured project portfolio, and verified credentials stack.
+   - Includes a robust regex keyword parser fallback to guarantee student profiles are never left empty even during network outages.
+
+---
+
+## Interactive UI & Design Systems
+
+- **Interactive Certifications Stack**: Displays only the primary credential on front with a subtle `+3, Hover to reveal ↓` indicator; on hover or tap, an accordion drawer expands downwards revealing all remaining verified credentials.
+- **Anti-Blur Technology**: Unlike standard UI scaling that introduces rasterization blur, Elevate uses clean `transform: translateY(-4px)` with `-webkit-backface-visibility: hidden` and `cubic-bezier(0.16, 1, 0.3, 1)` transitions, keeping all text, badges, and borders razor-sharp.
+- **Edge-Clearance Architecture**: The expanded drawer uses an 18px horizontal padding buffer (`margin: 0 -18px; padding: 8px 18px; width: calc(100% + 36px)`) so elevated cards never clip on the left or right edges.
+- **Placement Opportunity Bricks**: Feature rich company initials, package badges, and eligibility requirements with automatic closing on `mouseleave` or outside click.
 
 ---
 
 ## Automated Testing
 
-Elevate includes a zero-dependency test suite utilizing Node.js's built-in test runner (`node:test`) and assertion library (`node:assert/strict`):
+Elevate includes an automated test suite executed via the Node.js native test runner (`node:test`):
 
 ```bash
-# Run the automated test suite
+# Run all 27 automated unit and integration tests
 npm test
 
-# Run JavaScript syntax check across all modules
+# Run syntax verification across all JavaScript files
 npm run check
 ```
 
-The test suite validates:
-- HTML sanitization against XSS attack vectors.
-- Number and CGPA rounding precision.
-- Email format validation.
-- Password complexity requirements.
-- Name initial generation algorithms.
-- Data schema integrity for default users and seed datasets.
-- DOM element ID contracts in `index.html`.
+### Test Coverage (27 Passing Tests):
+- **ElevateUtils Unit Tests**:
+  - `escapeHtml()`: HTML entity escaping to prevent XSS.
+  - `formatCgpa()`: Numerical formatting and rounding to 1 decimal place.
+  - `isValidEmail()`: RFC-compliant email pattern validation.
+  - `isValidPassword()`: 4-tier password complexity rules (length $\ge 8$, uppercase, digit, special character).
+  - `getUserInitials()`: Extraction of initials for single, double, and multi-word names.
+- **ElevateData Schema & Seed Integrity**:
+  - Storage keys definition and immutability.
+  - Default demo student account validation.
+  - Complete seed data structure verification.
+- **HTML Contract & DOM Element IDs**:
+  - Verifies all 25+ essential element IDs exist in `index.html`.
+  - Confirms references to stylesheets, modular scripts, and favicon.
+  - Verifies physical existence of `css/styles.css`.
+- **Node.js & Express.js Server Integrity**:
+  - Verifies `server.js` exports a valid Express application instance.
+  - Tests `GET /api/health` returns `200 OK` with status `ok`.
+  - Tests `POST /api/resume/parse` rejects missing files with `400 Bad Request`.
+  - Tests `POST /api/resume/parse` extracts skills and projects from uploaded documents.
+  - Tests `POST /api/resume/reparse` re-analyzes active resume from `uploads/`.
+  - Tests `GET /api/resume/download` delivers binary resume with proper download headers.
+  - Tests `GET /api/drives/live` returns 10+ verified 2026 campus drives (proxies Gemini using server `.env`).
 
 ---
 
 ## Default Demo Credentials
 
-A pre-configured demo account is included for immediate testing:
+A pre-configured demo account is included for immediate evaluation:
 
 | Attribute | Value |
 | :--- | :--- |
@@ -232,19 +253,21 @@ A pre-configured demo account is included for immediate testing:
 | **Department** | Computer Science & Engineering |
 | **Graduation Year** | 2026 |
 | **CGPA** | 8.9 |
+| **Career Goal** | Full-Stack Developer specializing in scalable MERN architectures |
 
-> You can also register new accounts using the **Sign In / Register** modal; all new accounts persist in your browser's `localStorage`.
+> You can also register new accounts using the **Sign In / Register** modal; all new accounts persist in `localStorage` and trigger real live Gemini placement searches.
 
 ---
 
 ## Environment Variables & Security
 
-- **Client-Side Platform**: As Elevate runs purely in the browser with `localStorage`, no server-side `.env` file or API secrets are required.
-- **No Hardcoded Secrets**: The demo account uses mock client credentials. Never store real production passwords or private tokens in client-side code.
+- **Server Environment & Secrets**: API keys are maintained strictly on the server in `.env`, which is ignored by `.gitignore` to prevent secret leaks. A clean template is provided in `.env.example`.
 - **Cross-Site Scripting (XSS) Mitigation**: All user-supplied inputs and dynamically rendered text strings pass through `ElevateUtils.escapeHtml()` prior to insertion into the DOM.
+- **Safe File Uploads**: Multer memory storage handles resume parsing in RAM, preventing unmonitored disk clutter, while verified active resumes are stored safely in `uploads/` with sanitized filenames.
+- **Cache-Control & Security Headers**: Express server provides clean no-cache headers for dynamic assets during development.
 
 ---
 
 ## License
 
-This project is licensed under the [MIT License](LICENSE).
+This project is licensed under the MIT License — see the LICENSE file for details.

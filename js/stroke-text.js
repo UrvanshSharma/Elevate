@@ -51,7 +51,7 @@
       this.options = Object.assign(
         {
           text: 'WITHOUT LIMITS.',
-          strokeColor: '#A78BFA',
+          strokeColor: '#DF493C',
           fillColor: null,
           strokeWidth: 1.4,
           drawDuration: 1.6,
@@ -289,7 +289,7 @@
                 `${bbox.x - pad} ${bbox.y - pad} ${bbox.width + pad * 2} ${bbox.height + pad * 2}`
               );
             }
-          } catch (e) {}
+          } catch (e) { }
         }
       });
     }
@@ -447,7 +447,7 @@
         if (el.dataset.strokeConfig) {
           config = JSON.parse(el.dataset.strokeConfig);
         }
-      } catch (e) {}
+      } catch (e) { }
 
       const text = el.dataset.strokeText || el.textContent.trim() || undefined;
       new StrokeText(el, Object.assign({ text }, config));

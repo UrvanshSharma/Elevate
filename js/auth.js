@@ -46,6 +46,7 @@
     studentName: "student-name",
     studentMeta: "student-meta",
     studentCgpa: "student-cgpa",
+    studentGoal: "student-goal",
     loginEmail: "login-email",
     loginEmailStatus: "login-email-status",
     loginPassword: "login-password",
@@ -55,7 +56,11 @@
     signupRoll: "signup-roll",
     signupCgpa: "signup-cgpa",
     signupBranch: "signup-branch",
-    signupPassword: "signup-password"
+    signupYear: "signup-year",
+    signupGoal: "signup-goal",
+    signupPassword: "signup-password",
+    signupResume: "signup-resume",
+    signupSubmitBtn: "signup-submit-btn"
   };
 
   let config = {
@@ -190,9 +195,17 @@
 
     if (studentName) studentName.textContent = user.name;
     if (studentMeta) {
-      studentMeta.textContent = (user.branch || "Computer Science") + " | Class of " + (user.graduationYear || 2026);
+      const branchText = user.branch || "Computer Science & Engineering";
+      const yearText = user.graduationYear || user.year || 2026;
+      studentMeta.textContent = branchText + " | Graduating " + yearText;
     }
     if (studentCgpa) studentCgpa.textContent = (config.formatCgpa || Utils.formatCgpa)(user.cgpa);
+
+    const studentGoal = Utils.byId(ids.studentGoal || "student-goal");
+    if (studentGoal) {
+      const goalText = user.careerGoal || user.goal || "Build a strong placement-ready profile with organized documents, visible projects, and structured interview preparation.";
+      studentGoal.textContent = "Goal: " + goalText;
+    }
 
     if (Array.isArray(user.skills) && typeof config.renderSkills === "function") {
       config.renderSkills(user.skills);
@@ -207,6 +220,7 @@
     const studentName = Utils.byId(ids.studentName);
     const studentMeta = Utils.byId(ids.studentMeta);
     const studentCgpa = Utils.byId(ids.studentCgpa);
+    const studentGoal = Utils.byId(ids.studentGoal || "student-goal");
     const defaultStudent = config.defaultStudent || Data.SEED_DATA.defaultStudent;
 
     if (openAuth) openAuth.style.display = "inline-flex";
@@ -217,6 +231,9 @@
     if (studentName) studentName.textContent = defaultStudent.name;
     if (studentMeta) studentMeta.textContent = defaultStudent.branch + " | Graduating " + defaultStudent.year;
     if (studentCgpa) studentCgpa.textContent = (config.formatCgpa || Utils.formatCgpa)(defaultStudent.cgpa);
+    if (studentGoal) {
+      studentGoal.textContent = "Goal: " + (defaultStudent.goal || defaultStudent.careerGoal || "Build a strong placement-ready profile with organized documents, visible projects, and structured interview preparation.");
+    }
 
     if (typeof config.renderSkills === "function") {
       config.renderSkills(config.defaultSkills || Data.DEFAULT_SKILLS);
@@ -310,6 +327,15 @@
     setAuthAlert("", false);
     hideAuthModal();
     closeProfileDropdown();
+
+    if (typeof config.onSessionChanged === "function") {
+      config.onSessionChanged(user);
+    }
+
+    // Automatically navigate to the main page / dashboard
+    if (root.ElevateApp && typeof root.ElevateApp.showDashboard === "function") {
+      root.ElevateApp.showDashboard();
+    }
   }
 
   function handleLoginSubmit(event) {
@@ -341,7 +367,7 @@
     setAuthenticatedUser(user);
   }
 
-  function handleSignupSubmit(event) {
+  async function handleSignupSubmit(event) {
     event.preventDefault();
     setAuthAlert("", false);
 
@@ -350,18 +376,32 @@
     const rollInput = Utils.byId(ids.signupRoll);
     const cgpaInput = Utils.byId(ids.signupCgpa);
     const branchInput = Utils.byId(ids.signupBranch);
+    const yearInput = Utils.byId(ids.signupYear);
+    const goalInput = Utils.byId(ids.signupGoal);
     const passwordInput = Utils.byId(ids.signupPassword);
+    const resumeInput = Utils.byId(ids.signupResume);
+    const submitBtn = Utils.byId(ids.signupSubmitBtn);
 
-    if (!nameInput || !emailInput || !rollInput || !cgpaInput || !branchInput || !passwordInput) {
+    if (!nameInput || !emailInput || !passwordInput) {
       return;
     }
 
     const name = nameInput.value.trim();
     const email = emailInput.value.trim().toLowerCase();
-    const rollNumber = rollInput.value.trim();
-    const cgpa = cgpaInput.value;
-    const branch = branchInput.value.trim();
+    const rollNumber = rollInput ? rollInput.value.trim() : "";
+    const cgpa = cgpaInput ? cgpaInput.value : "";
+    const branch = branchInput ? branchInput.value.trim() : "";
     const password = passwordInput.value;
+
+    let graduationYear = 2026;
+    if (yearInput && yearInput.value.trim()) {
+      const py = parseInt(yearInput.value.trim(), 10);
+      if (!isNaN(py) && py > 1900 && py < 2100) graduationYear = py;
+    }
+
+    const careerGoal = (goalInput && goalInput.value.trim())
+      ? goalInput.value.trim()
+      : "Build a strong placement-ready profile with organized documents, visible projects, and structured interview preparation.";
 
     if (!name || !email || !password) {
       setAuthAlert("Name, email, and password are required.", true);
@@ -388,6 +428,55 @@
       return;
     }
 
+    // Check if an optional resume was uploaded
+    const resumeFile = resumeInput && resumeInput.files && resumeInput.files[0];
+    let extractedSkills = [];
+    let extractedProjects = [];
+    let extractedCertifications = [];
+    let userResumes = [];
+
+    if (resumeFile && typeof fetch === "function") {
+      setAuthAlert("Analyzing resume with Gemini AI (extracting skills, projects & certifications)...", false);
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.textContent = "Analyzing Resume with AI...";
+      }
+
+      try {
+        const formData = new FormData();
+        const res = await fetch("/api/resume/parse", {
+          method: "POST",
+          body: formData
+        });
+
+        if (res.ok) {
+          const parseResult = await res.json();
+          if (Array.isArray(parseResult.skills) && parseResult.skills.length > 0) {
+            extractedSkills = parseResult.skills;
+          }
+          if (Array.isArray(parseResult.projects) && parseResult.projects.length > 0) {
+            extractedProjects = parseResult.projects;
+          }
+          if (Array.isArray(parseResult.certifications) && parseResult.certifications.length > 0) {
+            extractedCertifications = parseResult.certifications;
+          }
+        }
+      } catch (uploadErr) {
+        console.warn("Could not parse resume during signup:", uploadErr);
+      } finally {
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = "Create Student Account";
+        }
+      }
+
+      userResumes = [{
+        title: "Resume - " + resumeFile.name,
+        detail: "AI Extracted (Skills & Projects)",
+        status: "Active"
+      }];
+    }
+
     const parsedCgpa = parseFloat(cgpa);
     const newUser = {
       id: "user_" + Date.now(),
@@ -395,16 +484,26 @@
       email: email,
       password: password,
       rollNumber: rollNumber || "2024CS-NEW",
-      branch: branch || "Computer Science",
-      graduationYear: 2026,
+      branch: branch || "Computer Science & Engineering",
+      graduationYear: graduationYear,
+      year: graduationYear,
       cgpa: !isNaN(parsedCgpa) ? parsedCgpa : 8.5,
-      careerGoal: "Aspiring Software Engineer",
-      skills: (config.defaultSkills || Data.DEFAULT_SKILLS).slice(0, 5)
+      careerGoal: careerGoal,
+      goal: careerGoal,
+      skills: extractedSkills,
+      projects: extractedProjects,
+      certificates: extractedCertifications,
+      resumes: userResumes,
+      resumeName: resumeFile ? resumeFile.name : null
     };
 
     users.push(newUser);
     saveUsersToStorage(users);
     setAuthenticatedUser(newUser);
+
+    if (typeof config.onUserRegistered === "function") {
+      config.onUserRegistered(newUser);
+    }
   }
 
   function handleLogout() {
@@ -412,6 +511,15 @@
     setCurrentUserInStorage(null);
     closeProfileDropdown();
     updateAuthUI();
+
+    if (typeof config.onSessionChanged === "function") {
+      config.onSessionChanged(null);
+    }
+
+    // Automatically return to the landing page
+    if (root.ElevateApp && typeof root.ElevateApp.showLanding === "function") {
+      root.ElevateApp.showLanding();
+    }
   }
 
   function bindEvents() {
@@ -509,10 +617,28 @@
     updateAuthUI();
   }
 
+  function updateUser(updatedUser) {
+    if (!updatedUser) return;
+    currentUser = updatedUser;
+    setCurrentUserInStorage(updatedUser);
+    const users = getUsersFromStorage();
+    const idx = users.findIndex(function(u) {
+      return u.email.toLowerCase() === updatedUser.email.toLowerCase();
+    });
+    if (idx !== -1) {
+      users[idx] = updatedUser;
+    } else {
+      users.push(updatedUser);
+    }
+    saveUsersToStorage(users);
+    updateAuthUI();
+  }
+
   const ElevateAuth = {
     init: init,
     getCurrentUser: function() { return currentUser; },
     getUsers: getUsersFromStorage,
+    updateUser: updateUser,
     openAuthModal: openAuthModal,
     hideAuthModal: hideAuthModal,
     logout: handleLogout

@@ -1,337 +1,474 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Elevate — Student Career &amp; Placement Readiness Ecosystem</title>
-    <meta name="description" content="Elevate — Unified student placement-readiness platform with portfolio management, resume versioning, verified credentials, and campus drive tracker." />
-    <!-- Bootstrap 5 CSS CDN -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
-    <!-- Custom Application CSS (Dark Editorial Design System) -->
-    <link rel="stylesheet" href="css/styles.css" />
-    <!-- StrokeText Component CSS (React Bits) -->
-    <link rel="stylesheet" href="StrokeText.css" />
-  </head>
-  <body class="single-screen-body">
 
-    <!-- ===== TOP NAVIGATION BAR ===== -->
-    <header id="topbar">
-      <!-- Left Brand Lockup -->
-      <a href="#scene-hero" class="topbar-brand" aria-label="Elevate Home">
-        <div class="brand-mark">EV</div>
-        <span class="brand-text">Elevate</span>
-        <span class="brand-badge">Student Core</span>
-      </a>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Elevate — Student Career &amp; Placement Readiness Ecosystem</title>
+  <meta name="description"
+    content="Elevate — Unified student placement-readiness platform with portfolio management, resume versioning, verified credentials, and campus drive tracker." />
+  <link rel="icon" type="image/png" href="css/logo.png" />
+  <!-- Bootstrap 5 CSS CDN -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <!-- Custom Application CSS (Dark Editorial Design System) -->
+  <link rel="stylesheet" href="css/styles.css" />
+  <!-- StrokeText Component CSS (React Bits Port) -->
+  <link rel="stylesheet" href="css/stroke-text.css" />
+</head>
 
+<body class="single-screen-body">
 
-      <!-- Right Profile Menu & Auth Controls -->
-      <div id="profile-menu">
-        <!-- Logged-Out Action Pill -->
-        <button id="open-auth" type="button" class="nav-signin-pill" aria-label="Sign In or Register">
-          <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
-          </svg>
-          Sign In
-        </button>
+  <!-- ===== TOP NAVIGATION BAR ===== -->
+  <header id="topbar">
+    <!-- Left Brand Lockup -->
+    <a href="javascript:void(0)" id="topbar-brand-link" class="topbar-brand" aria-label="Elevate Home">
+      <img src="css/logo.png" alt="Elevate Logo" class="brand-mark-img" />
+      <span class="brand-text">Elevate</span>
+      <span class="brand-badge">Student Core</span>
+    </a>
 
-        <!-- Logged-In Avatar Circle -->
-        <button id="avatar-btn" type="button" class="nav-avatar-trigger" style="display:none;" aria-label="Profile Menu" aria-expanded="false">
-          <span id="avatar-text" class="nav-avatar-initials">AS</span>
-          <span class="nav-avatar-dot"></span>
-        </button>
+    <!-- Right Profile Menu & Auth Controls -->
+    <div id="profile-menu">
+      <!-- Logged-Out Action Pill -->
+      <button id="open-auth" type="button" class="nav-signin-pill" aria-label="Sign In or Register">
+        <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"
+          aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round"
+            d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+        </svg>
+        Sign In
+      </button>
 
-        <!-- Dropdown Card -->
-        <div id="profile-dropdown" class="nav-dropdown" role="region" aria-label="User Account Menu">
-          <!-- Logged-in Content -->
-          <div id="auth-in" style="display:none;">
-            <div class="d-flex align-items-center gap-3">
-              <div class="rounded-circle d-flex align-items-center justify-content-center fw-bold" style="width:48px; height:48px; font-size:1.1rem; background:var(--accent-lime); color:#000;" id="menu-avatar">AS</div>
-              <div class="text-truncate">
-                <p id="menu-name" class="fw-bold mb-0 text-white text-truncate"></p>
-                <p id="menu-email" class="small mb-0 text-secondary text-truncate"></p>
-              </div>
+      <!-- Logged-In Avatar Circle -->
+      <button id="avatar-btn" type="button" class="nav-avatar-trigger" style="display:none;" aria-label="Profile Menu"
+        aria-expanded="false">
+        <span id="avatar-text" class="nav-avatar-initials">AS</span>
+        <span class="nav-avatar-dot"></span>
+      </button>
+
+      <!-- Dropdown Card -->
+      <div id="profile-dropdown" class="nav-dropdown" role="region" aria-label="User Account Menu">
+        <!-- Logged-in Content -->
+        <div id="auth-in" style="display:none;">
+          <div class="d-flex align-items-center gap-3">
+            <div class="rounded-circle d-flex align-items-center justify-content-center fw-bold"
+              style="width:48px; height:48px; font-size:1.1rem; background:var(--accent-lime); color:#000;"
+              id="menu-avatar">AS</div>
+            <div class="text-truncate">
+              <p id="menu-name" class="fw-bold mb-0 text-white text-truncate"></p>
+              <p id="menu-email" class="small mb-0 text-secondary text-truncate"></p>
             </div>
-            <hr class="border-secondary my-3 opacity-25" />
-            <div class="d-flex justify-content-between align-items-center mb-3">
-              <span class="small text-uppercase text-secondary fw-semibold" style="font-family:var(--font-mono); font-size:0.7rem;">Roll No:</span>
-              <span id="menu-roll" class="badge" style="background:var(--accent-lime-subtle); color:var(--accent-lime); border:1px solid var(--border-lime); font-family:var(--font-mono);"></span>
-            </div>
-            <button id="logout-btn" type="button" class="btn btn-outline-danger btn-sm w-100 fw-bold rounded-pill">
-              Sign Out
-            </button>
           </div>
-
-          <!-- Logged-out Content -->
-          <div id="auth-out">
-            <div class="d-flex align-items-center gap-2 mb-2">
-              <div class="brand-mark" style="width:28px; height:28px; font-size:1rem;">EV</div>
-              <div>
-                <h6 class="fw-bold mb-0 text-white" style="font-family:var(--font-display); font-size:1.15rem; letter-spacing:0.02em;">Elevate Core</h6>
-                <small class="text-secondary" style="font-size:0.72rem; font-family:var(--font-mono);">Student Placement Suite</small>
-              </div>
-            </div>
-            <hr class="border-secondary my-2 opacity-25" />
-            <p class="small text-secondary mb-3" style="font-size:0.8rem; line-height:1.5;">Sign in to track your personal student profile, resume variants, verified credentials, and placement applications.</p>
-            <button id="open-auth-alt" type="button" class="btn btn-primary w-100 fw-bold btn-sm rounded-pill">
-              Sign In / Register
-            </button>
+          <hr class="border-secondary my-3 opacity-25" />
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <span class="small text-uppercase text-secondary fw-semibold"
+              style="font-family:var(--font-mono); font-size:0.7rem;">Roll No:</span>
+            <span id="menu-roll" class="badge"
+              style="background:var(--accent-lime-subtle); color:var(--accent-lime); border:1px solid var(--border-lime); font-family:var(--font-mono);"></span>
           </div>
+          <button id="logout-btn" type="button" class="btn btn-outline-danger btn-sm w-100 fw-bold rounded-pill">
+            Sign Out
+          </button>
+        </div>
+
+        <!-- Logged-out Content -->
+        <div id="auth-out">
+          <div class="d-flex align-items-center gap-2 mb-2">
+            <img src="css/logo.png" alt="Elevate Logo" class="brand-mark-img" style="width:28px; height:28px;" />
+            <div>
+              <h6 class="fw-bold mb-0 text-white"
+                style="font-family:var(--font-display); font-size:1.15rem; letter-spacing:0.02em;">Elevate Core</h6>
+              <small class="text-secondary" style="font-size:0.72rem; font-family:var(--font-mono);">Student Placement
+                Suite</small>
+            </div>
+          </div>
+          <hr class="border-secondary my-2 opacity-25" />
+          <p class="small text-secondary mb-3" style="font-size:0.8rem; line-height:1.5;">Sign in to track your personal
+            student profile, resume variants, verified credentials, and placement applications.</p>
+          <button id="open-auth-alt" type="button" class="btn btn-primary w-100 fw-bold btn-sm rounded-pill">
+            Sign In / Register
+          </button>
         </div>
       </div>
-    </header>
+    </div>
+  </header>
 
-    <!-- ===== THE HERO: SINGLE-SCREEN EDITORIAL LANDING PAGE ===== -->
+  <!-- ======================================================================
+         VIEW 1: THE EDITORIAL LANDING PAGE
+         ====================================================================== -->
+  <div id="landing-view">
     <main id="scene-hero" class="hero-single-screen">
       <div class="hero-container">
-
         <!-- Main Headline with React Bits StrokeText Animation -->
         <h1 class="hero-title">
           <span class="line-1">YOUR POTENTIAL.</span>
-          <span
-            class="line-2"
-            id="hero-stroke-text"
-            data-stroke-text="WITHOUT LIMITS."
-            data-stroke-config='{"strokeColor":"#A78BFA","strokeStyle":"solid","strokeWidth":1.4,"dashLength":10,"drawDuration":1.6,"fillDelay":0.2,"stagger":0.05,"ease":"power2.out","trigger":"mount","fillMode":"wipe","wipeFrom":"left","fontSize":128,"fontWeight":800,"letterSpacing":-4,"marching":false,"hoverRedraw":true,"shadow":false,"fillColor":null,"shadowColor":null,"align":"left"}'
-          >WITHOUT LIMITS.</span>
+          <span class="line-2" id="hero-stroke-text" data-stroke-text="WITHOUT LIMITS."
+            data-stroke-config='{"strokeColor":"#DF493C","strokeStyle":"solid","strokeWidth":1.4,"dashLength":10,"drawDuration":1.6,"fillDelay":0.2,"stagger":0.05,"ease":"power2.out","trigger":"mount","fillMode":"wipe","wipeFrom":"left","fontSize":128,"fontWeight":800,"letterSpacing":-4,"marching":false,"hoverRedraw":true,"shadow":false,"fillColor":null,"shadowColor":null,"align":"left"}'>WITHOUT
+            LIMITS.</span>
         </h1>
 
         <!-- Supporting Text -->
         <p class="hero-lead-text">
-          Everything you need to build your future, in one place. A centralized studio for student portfolios, tailored resumes, peer interview experiences, and campus placement drives.
+          Everything you need to build your future, in one place. A centralized studio for student portfolios, tailored
+          resumes, peer interview experiences, and campus placement drives.
         </p>
 
-        <!-- Button Cluster (Shifted from CTA as requested) -->
+        <!-- Action Buttons -->
         <div class="hero-actions">
-          <button type="button" class="btn-lime" onclick="document.getElementById('open-auth').click();">
+          <button type="button" class="btn-lime" id="hero-btn-launch">
             Launch Your Student Account
-            <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.4" aria-hidden="true">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3"/>
+            <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.4"
+              aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3" />
             </svg>
           </button>
-          <button type="button" class="btn-outline-minimal" data-bs-toggle="modal" data-bs-target="#workspace-modal">
-            Review Aarav's Demo Profile
+          <button type="button" class="btn-outline-minimal" id="hero-btn-demo">
+            Explore Demo Profile
           </button>
         </div>
       </div>
+
+      <!-- Lower Right Floating Overview Boxes (Diagonal & Floating Constellation) -->
+      <div class="hero-floating-corner" id="overview">
+        <span id="project-title" class="d-none">Elevate - Career Development Platform</span>
+        <span id="project-description" class="d-none">Unified placement readiness platform built using HTML5, Vanilla
+          CSS, Bootstrap 5, and JavaScript.</span>
+
+        <div class="floating-header-pill">
+          <span class="status-pulse-dot"></span>
+          <span>PLATFORM PILLARS &bull; CORE FOCUS</span>
+        </div>
+
+        <div id="problem-points" class="floating-cards-cluster"></div>
+      </div>
     </main>
+  </div>
 
-    <!-- ===== ELEVATE WORKSPACE & DEMO PROFILE MODAL ===== -->
-    <!-- Preserves all 63 required DOM element IDs for automated tests and live functionality -->
-    <div class="modal fade" id="workspace-modal" tabindex="-1" aria-hidden="true" aria-labelledby="workspace-modal-title">
-      <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
-        <div class="modal-content">
-          <div class="modal-header border-bottom border-secondary border-opacity-25 py-3 px-4">
-            <div class="d-flex align-items-center gap-3">
-              <div class="brand-mark" style="width:30px; height:30px; font-size:1.1rem;">EV</div>
-              <div>
-                <h5 class="modal-title fw-bold text-white mb-0" id="workspace-modal-title" style="font-family:var(--font-display); font-size:1.4rem; text-transform:uppercase;">
-                  Elevate Student Workspace
-                </h5>
-                <small class="text-secondary" style="font-family:var(--font-mono); font-size:0.72rem;">Interactive Demo Profile &amp; Placement Suite</small>
+  <!-- ======================================================================
+         VIEW 2: THE MAIN PAGE / STUDENT WORKSPACE DASHBOARD
+         ====================================================================== -->
+  <div id="dashboard-view" style="display: none;">
+    <div id="main-content">
+      <div class="platform-container">
+        <div class="platform-layout-grid">
+
+          <!-- Sidebar Navigation -->
+          <aside class="sidebar-panel">
+            <div class="sidebar-kicker">Elevate Core</div>
+            <h2 class="sidebar-title">Placement Studio</h2>
+            <p class="sidebar-desc">Centralized student portfolio, resume management, interview preparation, and
+              placement drive tracker.</p>
+
+            <nav class="sidebar-nav" aria-label="Section Navigation">
+              <a class="nav-link-custom active" href="#profile"><span>Student Profile</span></a>
+              <a class="nav-link-custom" href="#assets"><span>Resume &amp; Certificates</span></a>
+              <a class="nav-link-custom" href="#portfolio"><span>Project Showcase</span></a>
+              <a class="nav-link-custom" href="#interviews"><span>Interview Hub</span></a>
+              <a class="nav-link-custom" href="#resources"><span>Learning Resources</span></a>
+              <a class="nav-link-custom" href="#placements"><span>Placement Drives</span></a>
+            </nav>
+          </aside>
+
+          <!-- Main Content Sections Column -->
+          <div class="platform-main-col">
+            <!-- Student Profile Section (Now the top section of dashboard) -->
+            <section id="profile" class="elevate-card mb-4">
+              <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
+                <div>
+                  <span class="section-kicker">Student Profile</span>
+                  <h2 id="student-name" class="section-heading-editorial mt-1 mb-1">Aarav Sharma</h2>
+                  <p id="student-meta" class="text-secondary small mb-0" style="font-family:var(--font-mono);">B.Tech in
+                    Computer Science &amp; Engineering | Graduating 2026</p>
+                </div>
+                <div class="cgpa-pill">
+                  <span class="cgpa-label">CGPA</span>
+                  <span id="student-cgpa" class="cgpa-val">8.9</span>
+                </div>
               </div>
-            </div>
-            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-          </div>
-          <div class="modal-body p-4">
-            <div id="main-content">
-              <!-- Overview Section -->
-              <section id="overview" class="elevate-card mb-4">
-                <span class="section-kicker">Elevate Platform</span>
-                <h1 id="project-title" class="section-heading-editorial">Elevate - Career Development Platform</h1>
-                <p id="project-description" class="lead text-secondary fs-6 mb-4">
-                  Unified placement readiness platform built using HTML5, Vanilla CSS, Bootstrap 5, and JavaScript.
-                </p>
-                <div id="problem-points" class="row g-3 mt-2"></div>
-              </section>
 
-              <!-- Student Profile Section -->
-              <section id="profile" class="elevate-card mb-4">
-                <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
-                  <div>
-                    <span class="section-kicker">Student Profile</span>
-                    <h2 id="student-name" class="section-heading-editorial mt-1 mb-1">Aarav Sharma</h2>
-                    <p id="student-meta" class="text-secondary small mb-0" style="font-family:var(--font-mono);">B.Tech in Computer Science &amp; Engineering | Graduating 2026</p>
-                  </div>
-                  <div class="cgpa-pill">
-                    <span class="cgpa-label">CGPA</span>
-                    <span id="student-cgpa" class="cgpa-val">8.9</span>
+              <p id="student-goal" class="mt-4 text-secondary" style="font-size:0.95rem; line-height:1.6;">
+                Goal: Build a strong placement-ready profile with organized documents, visible projects, and structured
+                interview preparation.
+              </p>
+
+              <div class="mt-4">
+                <span class="small fw-bold text-uppercase text-secondary tracking-wider"
+                  style="font-family:var(--font-mono); font-size:0.72rem; letter-spacing:0.1em;">Technical Skills</span>
+                <div id="student-skills" class="d-flex flex-wrap gap-1 mt-3"></div>
+              </div>
+            </section>
+
+            <!-- Resume & Certificates Section -->
+            <section id="assets" class="elevate-card mb-4">
+              <span class="section-kicker">Asset Management</span>
+              <h2 class="section-heading-editorial">Resumes &amp; Certificates</h2>
+
+              <div class="row g-4">
+                <div class="col-md-6">
+                  <div class="nested-subcard">
+                    <div>
+                      <h5 class="fw-bold mb-2 text-white"
+                        style="font-family:var(--font-display); font-size:1.35rem; text-transform:uppercase;">Resume
+                        Upload &amp; Versioning</h5>
+                      <p class="small text-secondary mb-3">Upload PDF/DOCX resume variants tailored for SDE, Full-Stack,
+                        or Frontend roles.</p>
+                      <input type="file" id="resume-file" accept=".pdf,.doc,.docx" class="d-none"
+                        aria-label="Upload Resume Document" />
+                      <div class="d-flex gap-2 flex-wrap mb-3">
+                        <button id="upload-resume" type="button"
+                          class="btn btn-primary btn-sm fw-bold rounded-pill">Upload New Version</button>
+                        <button id="btn-reanalyze-resume" type="button"
+                          class="btn btn-outline-primary btn-sm fw-bold rounded-pill"
+                          title="Re-analyze active resume with Gemini AI to extract all projects & certifications">✨ Re-analyze with AI</button>
+                        <button id="download-resume" type="button"
+                          class="btn btn-outline-secondary btn-sm fw-bold rounded-pill text-white border-secondary">Download
+                          Active PDF</button>
+                      </div>
+                      <div id="upload-status" class="small text-success fw-bold mb-2 d-none"
+                        style="font-family:var(--font-mono);"></div>
+                    </div>
+                    <div id="resume-list" class="mt-2"></div>
                   </div>
                 </div>
 
-                <p id="student-goal" class="mt-4 text-secondary" style="font-size:0.95rem; line-height:1.6;">
-                  Goal: Build a strong placement-ready profile with organized documents, visible projects, and structured interview preparation.
-                </p>
-
-                <div class="mt-4">
-                  <span class="small fw-bold text-uppercase text-secondary tracking-wider" style="font-family:var(--font-mono); font-size:0.72rem; letter-spacing:0.1em;">Technical Skills</span>
-                  <div id="student-skills" class="d-flex flex-wrap gap-1 mt-3"></div>
-                </div>
-              </section>
-
-              <!-- Resume & Certificates Section -->
-              <section id="assets" class="elevate-card mb-4">
-                <span class="section-kicker">Asset Management</span>
-                <h2 class="section-heading-editorial">Resumes &amp; Certificates</h2>
-                
-                <div class="row g-4">
-                  <div class="col-md-6">
-                    <div class="nested-subcard">
+                <div class="col-md-6">
+                  <div class="nested-subcard">
+                    <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-2">
                       <div>
-                        <h5 class="fw-bold mb-2 text-white" style="font-family:var(--font-display); font-size:1.35rem; text-transform:uppercase;">Resume Upload &amp; Versioning</h5>
-                        <p class="small text-secondary mb-3">Upload PDF/DOCX resume variants tailored for SDE, Full-Stack, or Frontend roles.</p>
-                        <input type="file" id="resume-file" accept=".pdf,.doc,.docx" class="d-none" aria-label="Upload Resume Document" />
-                        <div class="d-flex gap-2 flex-wrap mb-3">
-                          <button id="upload-resume" type="button" class="btn btn-primary btn-sm fw-bold rounded-pill">Upload New Version</button>
-                          <button id="download-resume" type="button" class="btn btn-outline-secondary btn-sm fw-bold rounded-pill text-white border-secondary">Download Active PDF</button>
+                        <h5 class="fw-bold mb-1 text-white"
+                          style="font-family:var(--font-display); font-size:1.35rem; text-transform:uppercase;">Certifications</h5>
+                        <p class="small text-secondary mb-0">Display course credentials, skill badges, and academic
+                          achievements.</p>
+                      </div>
+                      <button id="btn-toggle-add-cert" type="button"
+                        class="btn btn-outline-secondary btn-sm fw-bold rounded-pill text-white border-secondary"
+                        style="font-size:0.75rem;">
+                        + Add Certification
+                      </button>
+                    </div>
+
+                    <!-- Collapsible Form to Type In New Certification -->
+                    <form id="add-cert-form" class="d-none nested-subcard p-3 mb-3"
+                      style="background:var(--bg-canvas); border:1px solid var(--border-subtle);">
+                      <div class="mb-2">
+                        <label class="form-label small text-secondary mb-1" for="cert-input-title"
+                          style="font-size:0.75rem; font-family:var(--font-mono);">Certification Name</label>
+                        <input type="text" id="cert-input-title" class="form-control form-control-sm"
+                          placeholder="e.g. AWS Certified Solutions Architect" required />
+                      </div>
+                      <div class="row g-2 mb-2">
+                        <div class="col-6">
+                          <label class="form-label small text-secondary mb-1" for="cert-input-issuer"
+                            style="font-size:0.75rem; font-family:var(--font-mono);">Issuer / Platform</label>
+                          <input type="text" id="cert-input-issuer" class="form-control form-control-sm"
+                            placeholder="e.g. AWS, Coursera" required />
                         </div>
-                        <div id="upload-status" class="small text-success fw-bold mb-2 d-none" style="font-family:var(--font-mono);"></div>
+                        <div class="col-6">
+                          <label class="form-label small text-secondary mb-1" for="cert-input-tag"
+                            style="font-size:0.75rem; font-family:var(--font-mono);">Domain Tag</label>
+                          <input type="text" id="cert-input-tag" class="form-control form-control-sm"
+                            placeholder="e.g. Cloud, Web Dev" required />
+                        </div>
                       </div>
-                      <div id="resume-list" class="mt-2"></div>
-                    </div>
-                  </div>
+                      <div class="d-flex gap-2 justify-content-end">
+                        <button type="button" id="btn-cancel-cert"
+                          class="btn btn-sm btn-outline-secondary py-1 px-3">Cancel</button>
+                        <button type="submit" id="btn-save-cert"
+                          class="btn btn-sm btn-primary py-1 px-3">Save Certificate</button>
+                      </div>
+                    </form>
 
-                  <div class="col-md-6">
-                    <div class="nested-subcard">
-                      <div>
-                        <h5 class="fw-bold mb-2 text-white" style="font-family:var(--font-display); font-size:1.35rem; text-transform:uppercase;">Verified Certifications</h5>
-                        <p class="small text-secondary mb-3">Display course credentials, skill badges, and academic achievements.</p>
-                      </div>
-                      <div id="certificate-grid" class="d-flex flex-column gap-2"></div>
-                    </div>
+                    <div id="certificate-grid" class="d-flex flex-column gap-2"></div>
                   </div>
                 </div>
-              </section>
+              </div>
+            </section>
 
-              <!-- Project Portfolio Section -->
-              <section id="portfolio" class="elevate-card mb-4">
-                <span class="section-kicker">Project Portfolio</span>
-                <h2 class="section-heading-editorial">Featured Projects</h2>
-                <div id="project-grid" class="row g-3"></div>
-              </section>
+            <!-- Project Portfolio Section -->
+            <section id="portfolio" class="elevate-card mb-4">
+              <span class="section-kicker">Project Portfolio</span>
+              <h2 class="section-heading-editorial">Featured Projects</h2>
+              <div id="project-grid" class="row g-3"></div>
+            </section>
 
-              <!-- Interview Hub Section -->
-              <section id="interviews" class="elevate-card mb-4">
-                <span class="section-kicker">Interview Hub</span>
-                <h2 class="section-heading-editorial">Peer Interview Experiences</h2>
-                <div id="interview-list" class="row g-3"></div>
-              </section>
+            <!-- Interview Hub Section -->
+            <section id="interviews" class="elevate-card mb-4">
+              <span class="section-kicker">Interview Hub</span>
+              <h2 class="section-heading-editorial">Peer Interview Experiences</h2>
+              <div id="interview-list" class="row g-3"></div>
+            </section>
 
-              <!-- Learning Resources Section -->
-              <section id="resources" class="elevate-card mb-4">
-                <span class="section-kicker">Learning Resources</span>
-                <h2 class="section-heading-editorial">Preparation Study Packs</h2>
-                <div id="resource-list" class="row g-3"></div>
-              </section>
+            <!-- Learning Resources Section -->
+            <section id="resources" class="elevate-card mb-4">
+              <span class="section-kicker">Learning Resources</span>
+              <h2 class="section-heading-editorial">Preparation Study Packs</h2>
+              <div id="resource-list" class="row g-3"></div>
+            </section>
 
-              <!-- Placement Drives Section -->
-              <section id="placements" class="elevate-card">
-                <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-4">
-                  <div>
-                    <span class="section-kicker">Campus Opportunities</span>
-                    <h2 class="section-heading-editorial mb-0">Placement Drives &amp; Eligibility</h2>
+            <!-- Placement Drives Section -->
+            <section id="placements" class="elevate-card">
+              <!-- Top Row: Section Kicker & Live AI Status Badge -->
+              <div class="d-flex align-items-center gap-2 flex-wrap mb-2">
+                <span class="section-kicker mb-0">Campus Opportunities</span>
+                <span id="live-feed-badge" class="badge-live-gemini">
+                  <span class="live-dot-green"></span> LIVE 2026 BATCH
+                </span>
+              </div>
+
+              <!-- Main Row: Section Heading & Interactive Search / Sync Bar -->
+              <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-4">
+                <h2 class="section-heading-editorial mb-0">Placement Drives &amp; Eligibility</h2>
+                <div class="d-flex align-items-center gap-2 flex-wrap">
+                  <div class="search-input-wrapper position-relative">
+                    <svg class="search-icon-inside" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <circle cx="11" cy="11" r="8"></circle>
+                      <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                    </svg>
+                    <input type="search" id="company-search" class="search-input-editorial"
+                      placeholder="Search company or role..." aria-label="Search company drives or roles" />
                   </div>
-                  <input type="search" id="company-search" class="search-input-editorial" placeholder="Search company, role, or eligibility..." aria-label="Search company drives or roles" />
+                  <button type="button" id="btn-sync-drives" class="btn-sync-editorial" title="Sync live 2026 drives from Gemini AI feed">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+                      stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                      <path d="M3 3v5h5" />
+                      <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16" />
+                      <path d="M16 21h5v-5" />
+                    </svg>
+                    <span>Sync Live Drives</span>
+                  </button>
                 </div>
-                <div id="company-list" class="d-flex flex-column gap-3"></div>
-              </section>
-            </div>
+              </div>
+              <div id="company-list" class="placement-brick-grid"></div>
+            </section>
           </div>
         </div>
       </div>
     </div>
+  </div>
 
-    <!-- Authentication Modal (Login / Register) -->
-    <div class="modal fade" id="auth-modal" tabindex="-1" aria-hidden="true" aria-labelledby="auth-title">
-      <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title" id="auth-title">Welcome to Elevate</h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-          </div>
-          <div class="modal-body p-4">
-            <!-- Nav Tabs -->
-            <ul class="nav nav-pills nav-fill mb-4" id="auth-tabs" role="tablist">
-              <li class="nav-item" role="presentation">
-                <button class="nav-link active" id="login-tab" data-bs-toggle="pill" data-bs-target="#login-panel" type="button" role="tab" aria-selected="true" aria-controls="login-panel">Sign In</button>
-              </li>
-              <li class="nav-item" role="presentation">
-                <button class="nav-link" id="signup-tab" data-bs-toggle="pill" data-bs-target="#signup-panel" type="button" role="tab" aria-selected="false" aria-controls="signup-panel">Create Account</button>
-              </li>
-            </ul>
+  <!-- ======================================================================
+         AUTHENTICATION MODAL (LOGIN / REGISTER)
+         ====================================================================== -->
+  <div class="modal fade" id="auth-modal" tabindex="-1" aria-hidden="true" aria-labelledby="auth-title">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="auth-title">Welcome to Elevate</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body p-4">
+          <!-- Nav Tabs -->
+          <ul class="nav nav-pills nav-fill mb-4" id="auth-tabs" role="tablist">
+            <li class="nav-item" role="presentation">
+              <button class="nav-link active" id="login-tab" data-bs-toggle="pill" data-bs-target="#login-panel"
+                type="button" role="tab" aria-selected="true" aria-controls="login-panel">Sign In</button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link" id="signup-tab" data-bs-toggle="pill" data-bs-target="#signup-panel"
+                type="button" role="tab" aria-selected="false" aria-controls="signup-panel">Create Account</button>
+            </li>
+          </ul>
 
-            <div id="auth-alert" class="alert d-none small fw-bold py-2" role="alert"></div>
+          <div id="auth-alert" class="alert d-none small fw-bold py-2" role="alert"></div>
 
-            <div class="tab-content" id="auth-panels">
-              <!-- Login Form -->
-              <div class="tab-pane fade show active" id="login-panel" role="tabpanel" aria-labelledby="login-tab">
-                <form id="login-form">
-                  <div class="mb-3">
-                    <label class="form-label" for="login-email">Student Email</label>
-                    <input type="email" id="login-email" class="form-control" required placeholder="aarav@elevate.edu" />
-                    <div id="login-email-status" class="small mt-1 d-none"></div>
-                  </div>
-                  <div class="mb-3">
-                    <label class="form-label" for="login-password">Password</label>
-                    <input type="password" id="login-password" class="form-control" required placeholder="password123" />
-                  </div>
-                  <button type="submit" class="btn btn-primary w-100 py-2">Sign In to Dashboard</button>
-                </form>
-              </div>
+          <div class="tab-content" id="auth-panels">
+            <!-- Login Form -->
+            <div class="tab-pane fade show active" id="login-panel" role="tabpanel" aria-labelledby="login-tab">
+              <form id="login-form">
+                <div class="mb-3">
+                  <label class="form-label" for="login-email">Student Email</label>
+                  <input type="email" id="login-email" class="form-control" required placeholder="aarav@elevate.edu" />
+                  <div id="login-email-status" class="small mt-1 d-none"></div>
+                </div>
+                <div class="mb-3">
+                  <label class="form-label" for="login-password">Password</label>
+                  <input type="password" id="login-password" class="form-control" required placeholder="password123" />
+                </div>
+                <button type="submit" class="btn btn-primary w-100 py-2">Sign In to Dashboard</button>
+              </form>
+            </div>
 
-              <!-- Register Form -->
-              <div class="tab-pane fade" id="signup-panel" role="tabpanel" aria-labelledby="signup-tab">
-                <form id="signup-form">
-                  <div class="mb-2">
-                    <label class="form-label" for="signup-name">Full Name</label>
-                    <input type="text" id="signup-name" class="form-control form-control-sm" required placeholder="Aarav Sharma" />
+            <!-- Register Form -->
+            <div class="tab-pane fade" id="signup-panel" role="tabpanel" aria-labelledby="signup-tab">
+              <form id="signup-form">
+                <div class="mb-2">
+                  <label class="form-label" for="signup-name">Full Name</label>
+                  <input type="text" id="signup-name" class="form-control form-control-sm" required
+                    placeholder="Aarav Sharma" />
+                </div>
+                <div class="mb-2">
+                  <label class="form-label" for="signup-email">Student Email</label>
+                  <input type="email" id="signup-email" class="form-control form-control-sm" required
+                    placeholder="aarav@elevate.edu" />
+                  <div id="signup-email-status" class="small mt-1 d-none"></div>
+                </div>
+                <div class="row g-2 mb-2">
+                  <div class="col-6">
+                    <label class="form-label" for="signup-roll">Roll Number</label>
+                    <input type="text" id="signup-roll" class="form-control form-control-sm" placeholder="2024CS101" />
                   </div>
-                  <div class="mb-2">
-                    <label class="form-label" for="signup-email">Student Email</label>
-                    <input type="email" id="signup-email" class="form-control form-control-sm" required placeholder="aarav@elevate.edu" />
-                    <div id="signup-email-status" class="small mt-1 d-none"></div>
+                  <div class="col-6">
+                    <label class="form-label" for="signup-cgpa">CGPA</label>
+                    <input type="number" step="0.01" min="0" max="10" id="signup-cgpa"
+                      class="form-control form-control-sm" placeholder="8.9" />
                   </div>
-                  <div class="row g-2 mb-2">
-                    <div class="col-6">
-                      <label class="form-label" for="signup-roll">Roll Number</label>
-                      <input type="text" id="signup-roll" class="form-control form-control-sm" placeholder="2024CS101" />
-                    </div>
-                    <div class="col-6">
-                      <label class="form-label" for="signup-cgpa">CGPA</label>
-                      <input type="number" step="0.01" min="0" max="10" id="signup-cgpa" class="form-control form-control-sm" placeholder="8.9" />
-                    </div>
-                  </div>
-                  <div class="mb-2">
+                </div>
+                <div class="row g-2 mb-2">
+                  <div class="col-6">
                     <label class="form-label" for="signup-branch">Branch / Major</label>
-                    <input type="text" id="signup-branch" class="form-control form-control-sm" placeholder="Computer Science &amp; Engineering" />
+                    <input type="text" id="signup-branch" class="form-control form-control-sm"
+                      placeholder="Computer Science &amp; Engineering" />
                   </div>
-                  <div class="mb-3">
-                    <label class="form-label" for="signup-password">Password</label>
-                    <input type="password" id="signup-password" class="form-control form-control-sm" required minlength="8" pattern="(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}" title="Minimum 8 characters with 1 uppercase letter, 1 number, and 1 special character." placeholder="Password123!" />
-                    <div class="form-text small">Use at least 8 characters with 1 uppercase letter, 1 number, and 1 special character.</div>
+                  <div class="col-6">
+                    <label class="form-label" for="signup-year">Graduation Year</label>
+                    <input type="number" min="2020" max="2035" id="signup-year" class="form-control form-control-sm"
+                      placeholder="2026" />
                   </div>
-                  <button type="submit" class="btn btn-primary w-100 py-2">Create Student Account</button>
-                </form>
-              </div>
+                </div>
+                <div class="mb-2">
+                  <label class="form-label" for="signup-goal">Career Goal / Target</label>
+                  <input type="text" id="signup-goal" class="form-control form-control-sm"
+                    placeholder="e.g. SDE at a product company, focusing on scalable systems" />
+                </div>
+                <div class="mb-2">
+                  <label class="form-label" for="signup-password">Password</label>
+                  <input type="password" id="signup-password" class="form-control form-control-sm" required
+                    minlength="8" pattern="(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}"
+                    title="Minimum 8 characters with 1 uppercase letter, 1 number, and 1 special character."
+                    placeholder="Password123!" />
+                  <div class="form-text small">Use at least 8 characters with 1 uppercase letter, 1 number, and 1
+                    special character.</div>
+                </div>
+                <div class="mb-3">
+                  <label class="form-label" for="signup-resume">Upload Resume (PDF / TXT, optional)</label>
+                  <input type="file" id="signup-resume" accept=".pdf,.txt,.doc,.docx" class="form-control form-control-sm" />
+                  <div class="form-text small" style="font-size:0.75rem;">AI auto-extracts your technical skills &amp; projects into your profile!</div>
+                </div>
+                <button type="submit" id="signup-submit-btn" class="btn btn-primary w-100 py-2">Create Student Account</button>
+              </form>
             </div>
           </div>
         </div>
       </div>
     </div>
+  </div>
 
-    <!-- Bootstrap 5 JS Bundle CDN -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/bootstrap.bundle.min.js"></script>
+  <!-- Bootstrap 5 JS Bundle CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/bootstrap.bundle.min.js"></script>
 
-    <!-- GSAP Kinetic Animation Engine & Plugins -->
-    <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js"></script>
+  <!-- GSAP Kinetic Animation Engine & Plugins -->
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js"></script>
 
-    <!-- StrokeText Component Module (React Bits) -->
-    <script src="js/stroke-text.js"></script>
+  <!-- StrokeText Component Module (React Bits) -->
+  <script src="js/stroke-text.js"></script>
 
-    <!-- Elevate Application Modular Architecture -->
-    <script src="js/data.js"></script>
-    <script src="js/utils.js"></script>
-    <script src="js/auth.js"></script>
-    <script src="js/app.js"></script>
-  </body>
+  <!-- Elevate Application Modular Architecture -->
+  <script src="js/data.js"></script>
+  <script src="js/utils.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/app.js"></script>
+</body>
+
 </html>

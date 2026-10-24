@@ -3,12 +3,13 @@
  * Contains seed data, default student configuration, initial users, and storage keys.
  * Compatible with both browser globals and CommonJS for testing.
  */
-(function(root) {
+(function (root) {
   "use strict";
 
   const STORAGE_KEYS = {
     USERS: "elevate_users",
-    CURRENT_USER: "elevate_current_user"
+    CURRENT_USER: "elevate_current_user",
+    COMPANIES: "elevate_companies"
   };
 
   const DEFAULT_SKILLS = [
@@ -100,18 +101,15 @@
     ],
     companies: [
       {
-        name: "Infosprint Tech",
-        role: "Software Engineer",
-        eligibility: "CGPA 7.5+, JS, DSA",
-        deadline: "Aug 15, 2026",
-        status: "Open Drive"
-      },
-      {
-        name: "Nexa Digital",
-        role: "Frontend Developer Intern",
-        eligibility: "CGPA 7.0+, HTML/CSS, JS",
-        deadline: "Aug 22, 2026",
-        status: "Shortlisting"
+        companyName: "Elevate Tech (Demo Sample Placement Drive)",
+        name: "Elevate Tech",
+        role: "Software Engineering Trainee (Demo Sample)",
+        eligibility: "B.Tech/BE (2026 Batch), DSA, Web Development, Problem Solving",
+        salary: "₹12 LPA (Sample Package)",
+        deadline: "Dec 31, 2026",
+        status: "Open Drive",
+        applyUrl: "#demo-profile",
+        isDemo: true
       }
     ],
     interviewExperiences: [

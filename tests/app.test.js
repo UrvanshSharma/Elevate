@@ -202,7 +202,13 @@ describe("HTML Contract & DOM Element IDs", () => {
     "signup-roll",
     "signup-cgpa",
     "signup-branch",
-    "signup-password"
+    "signup-year",
+    "signup-goal",
+    "signup-password",
+    "signup-resume",
+    "btn-reanalyze-resume",
+    "btn-toggle-add-cert",
+    "add-cert-form"
   ];
 
   it("should contain all required element IDs referenced by JavaScript modules", () => {
@@ -212,8 +218,10 @@ describe("HTML Contract & DOM Element IDs", () => {
     }
   });
 
-  it("should link to modular scripts and css/styles.css", () => {
+  it("should link to modular scripts, favicon, and css/styles.css", () => {
     assert.ok(htmlContent.includes('href="css/styles.css"'), "Expected reference to css/styles.css");
+    assert.ok(htmlContent.includes('href="css/logo.png"'), "Expected reference to favicon css/logo.png");
+    assert.ok(htmlContent.includes('src="css/logo.png"'), "Expected brand mark image css/logo.png");
     assert.ok(htmlContent.includes('src="js/data.js"'), "Expected script js/data.js");
     assert.ok(htmlContent.includes('src="js/utils.js"'), "Expected script js/utils.js");
     assert.ok(htmlContent.includes('src="js/auth.js"'), "Expected script js/auth.js");
@@ -225,3 +233,154 @@ describe("HTML Contract & DOM Element IDs", () => {
     assert.ok(fs.existsSync(cssPath), "css/styles.css must exist");
   });
 });
+
+describe("Node.js & Express.js Server Integrity", () => {
+  const serverPath = path.resolve(__dirname, "../server.js");
+  it("should verify server.js exists", () => {
+    assert.ok(fs.existsSync(serverPath), "server.js must exist in project root");
+  });
+
+  it("should export a valid Express application instance", () => {
+    const app = require("../server.js");
+    assert.equal(typeof app, "function", "Express app should be an exported function");
+    assert.ok(app.get, "Express app should have routing methods");
+  });
+
+  it("should respond with 200 OK on /api/health", async () => {
+    const app = require("../server.js");
+    const http = require("http");
+    const server = http.createServer(app);
+    await new Promise((resolve) => server.listen(0, resolve));
+    const port = server.address().port;
+
+    try {
+      const res = await fetch(`http://127.0.0.1:${port}/api/health`);
+      assert.equal(res.status, 200);
+      const data = await res.json();
+      assert.equal(data.status, "ok");
+      assert.ok(data.message);
+    } finally {
+      await new Promise((resolve) => server.close(resolve));
+    }
+  });
+
+  it("should return 400 when /api/resume/parse is called without a file", async () => {
+    const app = require("../server.js");
+    const http = require("http");
+    const server = http.createServer(app);
+    await new Promise((resolve) => server.listen(0, resolve));
+    const port = server.address().port;
+
+    try {
+      const res = await fetch(`http://127.0.0.1:${port}/api/resume/parse`, {
+        method: "POST"
+      });
+      assert.equal(res.status, 400);
+      const data = await res.json();
+      assert.ok(data.error);
+    } finally {
+      await new Promise((resolve) => server.close(resolve));
+    }
+  });
+
+  it("should parse an uploaded resume text file and extract skills", async () => {
+    const app = require("../server.js");
+    const http = require("http");
+    const server = http.createServer(app);
+    await new Promise((resolve) => server.listen(0, resolve));
+    const port = server.address().port;
+
+    try {
+      const formData = new FormData();
+      const resumeBlob = new Blob([
+        "Aarav Sharma - SDE Resume\nSkills: JavaScript, React, Node.js, Express, MongoDB, Git\nProjects: Elevate Placement Portal - built with JavaScript and Node.js"
+      ], { type: "text/plain" });
+      formData.append("resume", resumeBlob, "test_resume.txt");
+
+      const res = await fetch(`http://127.0.0.1:${port}/api/resume/parse`, {
+        method: "POST",
+        body: formData
+      });
+      assert.equal(res.status, 200);
+      const data = await res.json();
+      assert.equal(data.status, "ok");
+      assert.ok(Array.isArray(data.skills));
+      assert.ok(data.skills.includes("JavaScript"));
+      assert.ok(data.skills.includes("Node.js"));
+      assert.ok(Array.isArray(data.projects));
+      assert.ok(Array.isArray(data.certifications));
+    } finally {
+      await new Promise((resolve) => server.close(resolve));
+    }
+  });
+
+  it("should reparse active resume from uploads directory via /api/resume/reparse", async () => {
+    const app = require("../server.js");
+    const http = require("http");
+    const server = http.createServer(app);
+    await new Promise((resolve) => server.listen(0, resolve));
+    const port = server.address().port;
+
+    try {
+      const res = await fetch(`http://127.0.0.1:${port}/api/resume/reparse`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ filename: "Urvansh.pdf" })
+      });
+      assert.equal(res.status, 200);
+      const data = await res.json();
+      assert.equal(data.status, "ok");
+      assert.ok(Array.isArray(data.skills));
+      assert.ok(Array.isArray(data.projects));
+      assert.ok(data.projects.length >= 1);
+      assert.ok(data.certifications.length >= 4);
+      const certTitles = data.certifications.map(c => c.title.toLowerCase());
+      assert.ok(certTitles.some(t => t.includes("azure data")));
+      assert.ok(certTitles.some(t => t.includes("azure ai")));
+      assert.ok(certTitles.some(t => t.includes("deloitte")));
+      assert.ok(certTitles.some(t => t.includes("neural networks")));
+      assert.ok(!certTitles.some(t => t.includes("aws certified cloud practitioner")));
+    } finally {
+      await new Promise((resolve) => server.close(resolve));
+    }
+  });
+
+  it("should allow downloading resume via /api/resume/download", async () => {
+    const app = require("../server.js");
+    const http = require("http");
+    const server = http.createServer(app);
+    await new Promise((resolve) => server.listen(0, resolve));
+    const port = server.address().port;
+
+    try {
+      const res = await fetch(`http://127.0.0.1:${port}/api/resume/download?filename=Urvansh.pdf`);
+      assert.equal(res.status, 200);
+      assert.ok(res.headers.get("content-disposition"));
+    } finally {
+      await new Promise((resolve) => server.close(resolve));
+    }
+  });
+
+  it("should return live or curated 2026 campus drives via /api/drives/live", async () => {
+    const app = require("../server.js");
+    const http = require("http");
+    const server = http.createServer(app);
+    await new Promise((resolve) => server.listen(0, resolve));
+    const port = server.address().port;
+
+    try {
+      const res = await fetch(`http://127.0.0.1:${port}/api/drives/live`);
+      assert.equal(res.status, 200);
+      const data = await res.json();
+      assert.equal(data.status, "ok");
+      assert.ok(Array.isArray(data.drives));
+      assert.ok(data.drives.length >= 10);
+      assert.ok(data.drives[0].companyName);
+      assert.ok(data.drives[0].role);
+    } finally {
+      await new Promise((resolve) => server.close(resolve));
+    }
+  });
+});
+
+
