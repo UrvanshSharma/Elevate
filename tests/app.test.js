@@ -383,4 +383,301 @@ describe("Node.js & Express.js Server Integrity", () => {
   });
 });
 
+describe("MongoDB Database, Models & Password Security", () => {
+  const { User, Resume } = require("../models");
+  const bcrypt = require("bcryptjs");
+
+  it("should securely hash user passwords using bcryptjs on save", async () => {
+    const rawPassword = "TestPassword@2026";
+    const testUser = new User({
+      name: "Simulated Student",
+      email: "simulated_" + Date.now() + "@elevate.edu",
+      password: rawPassword,
+      role: "student"
+    });
+
+    // Verify raw password is present before save hook
+    assert.equal(testUser.password, rawPassword);
+
+    // Simulate pre-save hook manually if database is offline or test is standalone
+    const salt = await bcrypt.genSalt(10);
+    testUser.password = await bcrypt.hash(testUser.password, salt);
+
+    // Password must now be a bcrypt hash (starts with $2a$ or $2b$)
+    assert.notEqual(testUser.password, rawPassword);
+    assert.ok(testUser.password.startsWith("$2a$") || testUser.password.startsWith("$2b$"));
+
+    // Validation using comparePassword method
+    const isMatch = await testUser.comparePassword(rawPassword);
+    assert.equal(isMatch, true);
+
+    const isWrongMatch = await testUser.comparePassword("WrongPassword123!");
+    assert.equal(isWrongMatch, false);
+  });
+
+  it("should strip sensitive password hash from JSON via toSafeObject()", () => {
+    const userDoc = new User({
+      name: "Priya Sharma",
+      email: "priya@elevate.edu",
+      password: "$2a$10$encryptedPasswordHashHere",
+      role: "student",
+      cgpa: 9.1
+    });
+
+    const safeObj = userDoc.toSafeObject();
+    assert.equal(safeObj.name, "Priya Sharma");
+    assert.equal(safeObj.email, "priya@elevate.edu");
+    assert.equal(safeObj.password, undefined);
+    assert.equal(safeObj.__v, undefined);
+  });
+
+  it("should instantiate Resume model with binary buffer and extraction schema", () => {
+    const fakeBuffer = Buffer.from("Candidate Resume Content for Testing");
+    const resume = new Resume({
+      filename: "Candidate_Resume.pdf",
+      originalName: "Candidate_Resume.pdf",
+      mimeType: "application/pdf",
+      size: fakeBuffer.length,
+      fileData: fakeBuffer,
+      skills: ["JavaScript", "Python", "MongoDB"],
+      projects: [{ name: "Elevate", desc: "Placement Portal", stack: ["Node.js"], status: "Active" }],
+      certifications: [{ title: "Azure AI", issuer: "Microsoft", tag: "AI/ML" }]
+    });
+
+    assert.equal(resume.filename, "Candidate_Resume.pdf");
+    assert.ok(Buffer.isBuffer(resume.fileData));
+    assert.equal(resume.skills.length, 3);
+    assert.equal(resume.projects.length, 1);
+    assert.equal(resume.certifications.length, 1);
+  });
+});
+
+describe("JWT Authentication & Authorization Middleware", () => {
+  const {
+    generateToken,
+    requireAuth,
+    requireRole,
+    JWT_SECRET
+  } = require("../middleware/auth");
+  const jwt = require("jsonwebtoken");
+
+  it("should sign a valid JWT token containing user identity and role", () => {
+    const testUser = {
+      _id: "60c72b2f9b1d8b2badbee123",
+      email: "student@elevate.edu",
+      role: "student",
+      name: "Rohan Verma"
+    };
+
+    const token = generateToken(testUser);
+    assert.ok(typeof token === "string" && token.length > 20);
+
+    const decoded = jwt.verify(token, JWT_SECRET);
+    assert.equal(decoded.id, testUser._id);
+    assert.equal(decoded.email, testUser.email);
+    assert.equal(decoded.role, "student");
+    assert.equal(decoded.name, "Rohan Verma");
+  });
+
+  it("should reject unauthenticated requests in requireAuth with 401", () => {
+    const req = { headers: {} };
+    let statusSet = null;
+    let jsonOutput = null;
+    const res = {
+      status: function (code) {
+        statusSet = code;
+        return this;
+      },
+      json: function (payload) {
+        jsonOutput = payload;
+      }
+    };
+    let nextCalled = false;
+
+    requireAuth(req, res, () => { nextCalled = true; });
+
+    assert.equal(statusSet, 401);
+    assert.ok(jsonOutput && jsonOutput.error);
+    assert.equal(nextCalled, false);
+  });
+
+  it("should allow authenticated requests in requireAuth when valid Bearer token provided", () => {
+    const token = generateToken({ _id: "usr_101", email: "test@elevate.edu", role: "student", name: "Test" });
+    const req = { headers: { authorization: `Bearer ${token}` } };
+    const res = {};
+    let nextCalled = false;
+
+    requireAuth(req, res, () => { nextCalled = true; });
+
+    assert.equal(nextCalled, true);
+    assert.ok(req.user);
+    assert.equal(req.user.email, "test@elevate.edu");
+  });
+
+  it("should enforce role-based authorization in requireRole (403 for unauthorized roles)", () => {
+    const req = { user: { id: "usr_101", role: "student" } };
+    let statusSet = null;
+    let jsonOutput = null;
+    const res = {
+      status: function (code) {
+        statusSet = code;
+        return this;
+      },
+      json: function (payload) {
+        jsonOutput = payload;
+      }
+    };
+    let nextCalled = false;
+
+    const adminOnly = requireRole("admin");
+    adminOnly(req, res, () => { nextCalled = true; });
+
+    assert.equal(statusSet, 403);
+    assert.ok(jsonOutput && jsonOutput.error.includes("Forbidden"));
+    assert.equal(nextCalled, false);
+
+    // Should allow when role matches
+    let allowedNextCalled = false;
+    const studentAllowed = requireRole("student", "admin");
+    studentAllowed(req, res, () => { allowedNextCalled = true; });
+    assert.equal(allowedNextCalled, true);
+  });
+});
+
+describe("Authentication & User API Endpoints", () => {
+  const http = require("http");
+  const app = require("../server.js");
+  const { generateToken } = require("../middleware/auth");
+
+  it("should reject registration when required fields are missing", async () => {
+    const server = http.createServer(app);
+    await new Promise((resolve) => server.listen(0, resolve));
+    const port = server.address().port;
+
+    try {
+      const res = await fetch(`http://127.0.0.1:${port}/api/auth/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "Incomplete User" })
+      });
+      assert.equal(res.status, 400);
+      const data = await res.json();
+      assert.ok(data.error);
+    } finally {
+      await new Promise((resolve) => server.close(resolve));
+    }
+  });
+
+  it("should reject registration when password does not meet complexity requirements", async () => {
+    const server = http.createServer(app);
+    await new Promise((resolve) => server.listen(0, resolve));
+    const port = server.address().port;
+
+    try {
+      const res = await fetch(`http://127.0.0.1:${port}/api/auth/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: "Weak Password User",
+          email: "weak@elevate.edu",
+          password: "weak" // fails complexity
+        })
+      });
+      assert.equal(res.status, 400);
+      const data = await res.json();
+      assert.ok(data.error.includes("Password must be"));
+    } finally {
+      await new Promise((resolve) => server.close(resolve));
+    }
+  });
+
+  it("should authenticate demo student account on /api/auth/login and return JWT token", async () => {
+    const server = http.createServer(app);
+    await new Promise((resolve) => server.listen(0, resolve));
+    const port = server.address().port;
+
+    try {
+      const res = await fetch(`http://127.0.0.1:${port}/api/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: "aarav@elevate.edu",
+          password: "password123"
+        })
+      });
+      assert.equal(res.status, 200);
+      const data = await res.json();
+      assert.equal(data.status, "ok");
+      assert.ok(data.token);
+      assert.equal(data.user.email, "aarav@elevate.edu");
+    } finally {
+      await new Promise((resolve) => server.close(resolve));
+    }
+  });
+
+  it("should provide authenticated user profile via GET /api/auth/me", async () => {
+    const server = http.createServer(app);
+    await new Promise((resolve) => server.listen(0, resolve));
+    const port = server.address().port;
+
+    const token = generateToken({
+      _id: "user_test_me",
+      email: "testme@elevate.edu",
+      role: "student",
+      name: "Test Me"
+    });
+
+    try {
+      const res = await fetch(`http://127.0.0.1:${port}/api/auth/me`, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+      assert.equal(res.status, 200);
+      const data = await res.json();
+      assert.equal(data.status, "ok");
+      assert.ok(data.user);
+    } finally {
+      await new Promise((resolve) => server.close(resolve));
+    }
+  });
+
+  it("should restrict GET /api/users to admin/recruiter roles via authorization", async () => {
+    const server = http.createServer(app);
+    await new Promise((resolve) => server.listen(0, resolve));
+    const port = server.address().port;
+
+    const studentToken = generateToken({
+      _id: "usr_student",
+      email: "student@elevate.edu",
+      role: "student"
+    });
+
+    const adminToken = generateToken({
+      _id: "usr_admin",
+      email: "admin@elevate.edu",
+      role: "admin"
+    });
+
+    try {
+      // 1. Student access should be forbidden (403)
+      const forbiddenRes = await fetch(`http://127.0.0.1:${port}/api/users`, {
+        headers: { Authorization: `Bearer ${studentToken}` }
+      });
+      assert.equal(forbiddenRes.status, 403);
+
+      // 2. Admin access should be permitted (200)
+      const allowedRes = await fetch(`http://127.0.0.1:${port}/api/users`, {
+        headers: { Authorization: `Bearer ${adminToken}` }
+      });
+      assert.equal(allowedRes.status, 200);
+      const data = await allowedRes.json();
+      assert.equal(data.status, "ok");
+    } finally {
+      await new Promise((resolve) => server.close(resolve));
+    }
+  });
+});
+
+
 

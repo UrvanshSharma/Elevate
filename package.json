@@ -5,9 +5,9 @@
   "private": true,
   "scripts": {
     "test": "node --test tests/app.test.js",
-    "check": "node --check server.js js/data.js js/utils.js js/auth.js js/app.js tests/app.test.js",
+    "check": "node --check server.js db.js models/User.js models/Resume.js models/index.js middleware/auth.js js/data.js js/utils.js js/auth.js js/app.js tests/app.test.js",
     "start": "node server.js",
-    "dev": "node server.js"
+    "dev": "node --watch server.js"
   },
   "keywords": [
     "career-development",
@@ -18,8 +18,11 @@
   "author": "Elevate Team",
   "license": "MIT",
   "dependencies": {
+    "bcryptjs": "^3.0.3",
     "express": "^5.3.0",
     "gsap": "^3.15.0",
+    "jsonwebtoken": "^9.0.3",
+    "mongoose": "^9.11.4",
     "multer": "^2.5.0",
     "pdf-parse": "^1.1.1"
   }

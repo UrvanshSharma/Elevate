@@ -1538,12 +1538,16 @@ Return ONLY a valid JSON array of objects using this exact structure:
     try {
       const apiKey = getGeminiApiKey();
       const filename = user.resumeName || "Urvansh.pdf";
+      const token = (root.ElevateAuth && typeof root.ElevateAuth.getToken === "function")
+        ? root.ElevateAuth.getToken()
+        : null;
 
       const res = await fetch("/api/resume/reparse", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...(apiKey ? { "x-gemini-key": apiKey } : {})
+          ...(apiKey ? { "x-gemini-key": apiKey } : {}),
+          ...(token ? { "Authorization": "Bearer " + token } : {})
         },
         body: JSON.stringify({ filename: filename })
       });
@@ -1608,10 +1612,16 @@ Return ONLY a valid JSON array of objects using this exact structure:
           const formData = new FormData();
           formData.append("resume", file);
           const apiKey = getGeminiApiKey();
+          const token = (root.ElevateAuth && typeof root.ElevateAuth.getToken === "function")
+            ? root.ElevateAuth.getToken()
+            : null;
 
           const res = await fetch("/api/resume/parse", {
             method: "POST",
-            headers: apiKey ? { "x-gemini-key": apiKey } : {},
+            headers: {
+              ...(apiKey ? { "x-gemini-key": apiKey } : {}),
+              ...(token ? { "Authorization": "Bearer " + token } : {})
+            },
             body: formData
           });
 
@@ -1640,8 +1650,12 @@ Return ONLY a valid JSON array of objects using this exact structure:
       downloadBtn.addEventListener("click", function () {
         const user = getCurrentUser();
         const fname = (user && user.resumeName) ? user.resumeName : "Urvansh.pdf";
+        const token = (root.ElevateAuth && typeof root.ElevateAuth.getToken === "function")
+          ? root.ElevateAuth.getToken()
+          : null;
         showStatusMessage("Downloading " + fname + "...");
-        window.location.href = "/api/resume/download?filename=" + encodeURIComponent(fname);
+        const downloadUrl = "/api/resume/download?filename=" + encodeURIComponent(fname) + (token ? "&token=" + encodeURIComponent(token) : "");
+        window.location.href = downloadUrl;
       });
     }
 

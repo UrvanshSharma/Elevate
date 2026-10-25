@@ -22,6 +22,21 @@
 
   const USERS_STORAGE_KEY = Data.STORAGE_KEYS.USERS;
   const CURRENT_USER_KEY = Data.STORAGE_KEYS.CURRENT_USER;
+  const TOKEN_KEY = "elevate_token";
+
+  function getToken() {
+    if (typeof localStorage === "undefined") return null;
+    return localStorage.getItem(TOKEN_KEY);
+  }
+
+  function setToken(token) {
+    if (typeof localStorage === "undefined") return;
+    if (token) {
+      localStorage.setItem(TOKEN_KEY, token);
+    } else {
+      localStorage.removeItem(TOKEN_KEY);
+    }
+  }
 
   const ids = {
     alert: "auth-alert",
@@ -338,7 +353,7 @@
     }
   }
 
-  function handleLoginSubmit(event) {
+  async function handleLoginSubmit(event) {
     event.preventDefault();
     setAuthAlert("", false);
 
@@ -354,13 +369,44 @@
       return;
     }
 
+    if (!password) {
+      setAuthAlert("Password is required.", true);
+      return;
+    }
+
+    // Attempt MongoDB authentication endpoint first
+    if (typeof fetch === "function") {
+      try {
+        const res = await fetch("/api/auth/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: email, password: password })
+        });
+        const data = await res.json();
+
+        if (res.ok && data.status === "ok") {
+          if (data.token) setToken(data.token);
+          setAuthenticatedUser(data.user);
+          return;
+        } else {
+          setAuthAlert(data.error || "Incorrect email or password. Please try again.", true);
+          return;
+        }
+      } catch (err) {
+        console.warn("Backend auth failed, falling back to local storage:", err);
+        setAuthAlert("Unable to reach the server. Please check your network connection.", true);
+        return;
+      }
+    }
+
+    // Local storage fallback if offline
     const users = getUsersFromStorage();
     const user = users.find(function(item) {
       return item.email.toLowerCase() === email;
     });
 
     if (!user || user.password !== password) {
-      setAuthAlert("Invalid email or password.", true);
+      setAuthAlert("Incorrect email or password.", true);
       return;
     }
 
@@ -418,6 +464,60 @@
       return;
     }
 
+    const resumeFile = resumeInput && resumeInput.files && resumeInput.files[0];
+
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.textContent = resumeFile
+        ? "Uploading & Parsing Resume with AI..."
+        : "Creating Student Account...";
+    }
+
+    if (resumeFile) {
+      setAuthAlert("Uploading resume & analyzing skills with Gemini AI...", false);
+    }
+
+    // Submit to MongoDB backend endpoint
+    if (typeof fetch === "function") {
+      try {
+        const formData = new FormData();
+        formData.append("name", name);
+        formData.append("email", email);
+        formData.append("password", password);
+        formData.append("rollNumber", rollNumber || "2024CS-NEW");
+        formData.append("branch", branch || "Computer Science & Engineering");
+        formData.append("graduationYear", graduationYear);
+        formData.append("cgpa", cgpa || "8.5");
+        formData.append("careerGoal", careerGoal);
+        if (resumeFile) {
+          formData.append("resume", resumeFile);
+        }
+
+        const res = await fetch("/api/auth/register", {
+          method: "POST",
+          body: formData
+        });
+        const data = await res.json();
+
+        if (res.ok && data.status === "ok") {
+          if (data.token) setToken(data.token);
+          setAuthenticatedUser(data.user);
+          return;
+        } else {
+          setAuthAlert(data.error || "Failed to create account.", true);
+          return;
+        }
+      } catch (err) {
+        console.warn("Backend registration failed, falling back to local storage:", err);
+      } finally {
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = "Create Student Account";
+        }
+      }
+    }
+
+    // Local storage fallback if offline
     const users = getUsersFromStorage();
     const existingUser = users.find(function(item) {
       return item.email.toLowerCase() === email;
@@ -428,51 +528,15 @@
       return;
     }
 
-    // Check if an optional resume was uploaded
-    const resumeFile = resumeInput && resumeInput.files && resumeInput.files[0];
     let extractedSkills = [];
     let extractedProjects = [];
     let extractedCertifications = [];
     let userResumes = [];
 
-    if (resumeFile && typeof fetch === "function") {
-      setAuthAlert("Analyzing resume with Gemini AI (extracting skills, projects & certifications)...", false);
-      if (submitBtn) {
-        submitBtn.disabled = true;
-        submitBtn.textContent = "Analyzing Resume with AI...";
-      }
-
-      try {
-        const formData = new FormData();
-        const res = await fetch("/api/resume/parse", {
-          method: "POST",
-          body: formData
-        });
-
-        if (res.ok) {
-          const parseResult = await res.json();
-          if (Array.isArray(parseResult.skills) && parseResult.skills.length > 0) {
-            extractedSkills = parseResult.skills;
-          }
-          if (Array.isArray(parseResult.projects) && parseResult.projects.length > 0) {
-            extractedProjects = parseResult.projects;
-          }
-          if (Array.isArray(parseResult.certifications) && parseResult.certifications.length > 0) {
-            extractedCertifications = parseResult.certifications;
-          }
-        }
-      } catch (uploadErr) {
-        console.warn("Could not parse resume during signup:", uploadErr);
-      } finally {
-        if (submitBtn) {
-          submitBtn.disabled = false;
-          submitBtn.textContent = "Create Student Account";
-        }
-      }
-
+    if (resumeFile) {
       userResumes = [{
         title: "Resume - " + resumeFile.name,
-        detail: "AI Extracted (Skills & Projects)",
+        detail: "Uploaded Document",
         status: "Active"
       }];
     }
@@ -508,6 +572,7 @@
 
   function handleLogout() {
     currentUser = null;
+    setToken(null);
     setCurrentUserInStorage(null);
     closeProfileDropdown();
     updateAuthUI();
@@ -608,19 +673,64 @@
     }
   }
 
-  function init(options) {
+  async function init(options) {
     if (options) {
       config = Object.assign({}, config, options);
     }
     bindEvents();
     currentUser = getCurrentUserFromStorage();
     updateAuthUI();
+
+    // Verify and refresh session from MongoDB using stored JWT token
+    const token = getToken();
+    if (token && typeof fetch === "function") {
+      try {
+        const res = await fetch("/api/auth/me", {
+          headers: { "Authorization": "Bearer " + token }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.user) {
+            currentUser = data.user;
+            setCurrentUserInStorage(data.user);
+            updateAuthUI();
+            if (typeof config.onSessionChanged === "function") {
+              config.onSessionChanged(data.user);
+            }
+          }
+        } else if (res.status === 401) {
+          // Token is invalid/expired; clear session
+          setToken(null);
+          currentUser = null;
+          setCurrentUserInStorage(null);
+          updateAuthUI();
+        }
+      } catch (_) {
+        // Offline / network failure; continue with local cached session
+      }
+    }
   }
 
-  function updateUser(updatedUser) {
+  async function updateUser(updatedUser) {
     if (!updatedUser) return;
     currentUser = updatedUser;
     setCurrentUserInStorage(updatedUser);
+
+    // Sync profile updates to MongoDB
+    const token = getToken();
+    if (token && typeof fetch === "function") {
+      try {
+        await fetch("/api/auth/profile", {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer " + token
+          },
+          body: JSON.stringify(updatedUser)
+        });
+      } catch (_) {}
+    }
+
     const users = getUsersFromStorage();
     const idx = users.findIndex(function(u) {
       return u.email.toLowerCase() === updatedUser.email.toLowerCase();
@@ -637,6 +747,7 @@
   const ElevateAuth = {
     init: init,
     getCurrentUser: function() { return currentUser; },
+    getToken: getToken,
     getUsers: getUsersFromStorage,
     updateUser: updateUser,
     openAuthModal: openAuthModal,
