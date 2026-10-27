@@ -1,8 +1,4 @@
-/**
- * Elevate Auth Module
- * Handles client-side authentication, localStorage user persistence,
- * login/registration modals, and profile status updates.
- */
+// Student authentication, login modals, and session handling
 (function(root) {
   "use strict";
 
@@ -17,12 +13,32 @@
     formatCgpa: function(v) { return Number(v || 0).toFixed(1); },
     isValidEmail: function(e) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e); },
     isValidPassword: function(p) { return /^(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/.test(p); },
-    getUserInitials: function(n) { return (n || "ST").slice(0, 2).toUpperCase(); }
+    getUserInitials: function(n) { return (n || "ST").slice(0, 2).toUpperCase(); },
+    syncStoredGeminiKey: function() {}
   };
 
   const USERS_STORAGE_KEY = Data.STORAGE_KEYS.USERS;
   const CURRENT_USER_KEY = Data.STORAGE_KEYS.CURRENT_USER;
   const TOKEN_KEY = "elevate_token";
+  let serverHasGeminiKey = false;
+
+  function updateGeminiStatusDisplay() {
+    const menuGemini = Utils.byId("menu-gemini-status");
+    if (!menuGemini) return;
+    const user = currentUser;
+    const hasKey = Boolean(user && user.geminiApiKey && !user.geminiApiKey.includes("YOUR_GEMINI_API_KEY")) || Boolean(serverHasGeminiKey);
+    if (hasKey) {
+      menuGemini.textContent = "CONNECTED";
+      menuGemini.style.background = "rgba(16,185,129,0.15)";
+      menuGemini.style.color = "#10b981";
+      menuGemini.style.borderColor = "rgba(16,185,129,0.3)";
+    } else {
+      menuGemini.textContent = "OFFLINE";
+      menuGemini.style.background = "rgba(255,92,92,0.15)";
+      menuGemini.style.color = "#ff5c5c";
+      menuGemini.style.borderColor = "rgba(255,92,92,0.3)";
+    }
+  }
 
   function getToken() {
     if (typeof localStorage === "undefined") return null;
@@ -222,6 +238,8 @@
       studentGoal.textContent = "Goal: " + goalText;
     }
 
+    updateGeminiStatusDisplay();
+
     if (Array.isArray(user.skills) && typeof config.renderSkills === "function") {
       config.renderSkills(user.skills);
     }
@@ -242,6 +260,8 @@
     if (avatarBtn) avatarBtn.style.display = "none";
     if (authOut) authOut.style.display = "block";
     if (authIn) authIn.style.display = "none";
+
+    updateGeminiStatusDisplay();
 
     if (studentName) studentName.textContent = defaultStudent.name;
     if (studentMeta) studentMeta.textContent = defaultStudent.branch + " | Graduating " + defaultStudent.year;
@@ -344,12 +364,17 @@
     closeProfileDropdown();
 
     if (typeof config.onSessionChanged === "function") {
-      config.onSessionChanged(user);
+      try {
+        config.onSessionChanged(user);
+      } catch (err) {
+        console.error("Error in onSessionChanged callback:", err);
+      }
     }
 
     // Automatically navigate to the main page / dashboard
-    if (root.ElevateApp && typeof root.ElevateApp.showDashboard === "function") {
-      root.ElevateApp.showDashboard();
+    const app = root.ElevateApp || (typeof window !== "undefined" ? window.ElevateApp : null);
+    if (app && typeof app.showDashboard === "function") {
+      app.showDashboard();
     }
   }
 
@@ -386,6 +411,7 @@
 
         if (res.ok && data.status === "ok") {
           if (data.token) setToken(data.token);
+          Utils.syncStoredGeminiKey(email, data.user ? data.user.geminiApiKey : null);
           setAuthenticatedUser(data.user);
           return;
         } else {
@@ -427,6 +453,7 @@
     const passwordInput = Utils.byId(ids.signupPassword);
     const resumeInput = Utils.byId(ids.signupResume);
     const submitBtn = Utils.byId(ids.signupSubmitBtn);
+    const geminiKeyInput = Utils.byId("signup-gemini-key");
 
     if (!nameInput || !emailInput || !passwordInput) {
       return;
@@ -438,6 +465,7 @@
     const cgpa = cgpaInput ? cgpaInput.value : "";
     const branch = branchInput ? branchInput.value.trim() : "";
     const password = passwordInput.value;
+    const geminiKey = geminiKeyInput && geminiKeyInput.value ? geminiKeyInput.value.trim() : "";
 
     let graduationYear = 2026;
     if (yearInput && yearInput.value.trim()) {
@@ -468,13 +496,17 @@
 
     if (submitBtn) {
       submitBtn.disabled = true;
-      submitBtn.textContent = resumeFile
+      submitBtn.textContent = (resumeFile && geminiKey)
         ? "Uploading & Parsing Resume with AI..."
-        : "Creating Student Account...";
+        : (resumeFile ? "Uploading Resume & Creating Account..." : "Creating Student Account...");
     }
 
     if (resumeFile) {
-      setAuthAlert("Uploading resume & analyzing skills with Gemini AI...", false);
+      if (geminiKey) {
+        setAuthAlert("Uploading resume & analyzing skills with Gemini AI...", false);
+      } else {
+        setAuthAlert("Creating student account & saving profile...", false);
+      }
     }
 
     // Submit to MongoDB backend endpoint
@@ -489,6 +521,9 @@
         formData.append("graduationYear", graduationYear);
         formData.append("cgpa", cgpa || "8.5");
         formData.append("careerGoal", careerGoal);
+        if (geminiKey) {
+          formData.append("geminiApiKey", geminiKey);
+        }
         if (resumeFile) {
           formData.append("resume", resumeFile);
         }
@@ -501,6 +536,7 @@
 
         if (res.ok && data.status === "ok") {
           if (data.token) setToken(data.token);
+          Utils.syncStoredGeminiKey(email, geminiKey);
           setAuthenticatedUser(data.user);
           return;
         } else {
@@ -574,6 +610,7 @@
     currentUser = null;
     setToken(null);
     setCurrentUserInStorage(null);
+    Utils.syncStoredGeminiKey(currentUser ? currentUser.email : null, "");
     closeProfileDropdown();
     updateAuthUI();
 
@@ -709,6 +746,18 @@
         // Offline / network failure; continue with local cached session
       }
     }
+
+    // Check server Gemini configuration status
+    if (typeof fetch === "function") {
+      try {
+        fetch("/api/health").then(r => r.json()).then(data => {
+          if (data && data.hasGeminiKey) {
+            serverHasGeminiKey = true;
+            updateGeminiStatusDisplay();
+          }
+        }).catch(() => {});
+      } catch (_) {}
+    }
   }
 
   async function updateUser(updatedUser) {
@@ -750,14 +799,22 @@
     getToken: getToken,
     getUsers: getUsersFromStorage,
     updateUser: updateUser,
+    updateAuthUI: updateAuthUI,
     openAuthModal: openAuthModal,
     hideAuthModal: hideAuthModal,
-    logout: handleLogout
+    logout: handleLogout,
+    updateGeminiStatus: function(connected) {
+      serverHasGeminiKey = Boolean(connected);
+      updateGeminiStatusDisplay();
+    },
+    isGeminiConnected: function() {
+      const user = currentUser;
+      return Boolean(user && user.geminiApiKey && !user.geminiApiKey.includes("YOUR_GEMINI_API_KEY")) || Boolean(serverHasGeminiKey);
+    }
   };
 
+  root.ElevateAuth = ElevateAuth;
   if (typeof module !== "undefined" && module.exports) {
     module.exports = ElevateAuth;
-  } else {
-    root.ElevateAuth = ElevateAuth;
   }
 })(typeof window !== "undefined" ? window : globalThis);

@@ -1,8 +1,4 @@
-/**
- * Authentication & Authorization Middleware
- * Generates and verifies JWT tokens, enforces role-based access control,
- * and attaches authenticated user context to HTTP requests.
- */
+// JWT authentication and role-based access control
 const jwt = require('jsonwebtoken');
 const path = require('path');
 const fs = require('fs');
@@ -26,11 +22,7 @@ function resolveJwtSecret() {
 const JWT_SECRET = resolveJwtSecret();
 const TOKEN_EXPIRY = '7d';
 
-/**
- * Generates a signed JWT for an authenticated user.
- * @param {Object} user - User document or object.
- * @returns {string} Signed JWT token.
- */
+// Generate a JWT token for the user
 function generateToken(user) {
   const payload = {
     id: user._id ? user._id.toString() : user.id,
@@ -41,11 +33,7 @@ function generateToken(user) {
   return jwt.sign(payload, JWT_SECRET, { expiresIn: TOKEN_EXPIRY });
 }
 
-/**
- * Extracts bearer token from headers or query parameters.
- * @param {express.Request} req
- * @returns {string|null}
- */
+// Extract bearer token from headers or query string
 function extractToken(req) {
   const authHeader = req.headers.authorization || req.headers.Authorization;
   if (authHeader && typeof authHeader === 'string') {
@@ -64,9 +52,7 @@ function extractToken(req) {
   return null;
 }
 
-/**
- * Middleware: Strictly requires valid authentication.
- */
+// Block request if user is not authenticated
 function requireAuth(req, res, next) {
   const token = extractToken(req);
   if (!token) {
@@ -86,10 +72,7 @@ function requireAuth(req, res, next) {
   }
 }
 
-/**
- * Middleware: Attaches authenticated user context if a token is present,
- * but allows unauthenticated requests to continue with req.user = null.
- */
+// Attach user if token is valid, otherwise proceed as guest
 function optionalAuth(req, res, next) {
   const token = extractToken(req);
   if (!token) {
@@ -106,10 +89,7 @@ function optionalAuth(req, res, next) {
   next();
 }
 
-/**
- * Middleware factory: Enforces role-based authorization.
- * @param  {...string} allowedRoles - e.g. 'student', 'recruiter', 'admin'
- */
+// Restrict route to specific user roles
 function requireRole(...allowedRoles) {
   return (req, res, next) => {
     if (!req.user) {

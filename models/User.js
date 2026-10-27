@@ -84,16 +84,20 @@ const UserSchema = new mongoose.Schema({
   resumeName: {
     type: String,
     default: null
+  },
+  geminiApiKey: {
+    type: String,
+    default: '',
+    trim: true
   }
 }, {
   timestamps: true,
   bufferCommands: false
 });
 
-// Pre-save hook to hash password with bcryptjs before saving to MongoDB
+// Hash password with bcrypt before saving
 UserSchema.pre('save', async function() {
   if (!this.isModified('password')) return;
-  // Prevent double-hashing if password is already a bcrypt hash
   if (typeof this.password === 'string' && (this.password.startsWith('$2a$') || this.password.startsWith('$2b$'))) {
     return;
   }
@@ -101,14 +105,13 @@ UserSchema.pre('save', async function() {
   this.password = await bcrypt.hash(this.password, salt);
 });
 
-// Instance method to compare candidate password
+// Check candidate password against hash
 UserSchema.methods.comparePassword = async function(candidatePassword) {
   if (!this.password || !candidatePassword) return false;
   try {
     if (await bcrypt.compare(candidatePassword, this.password)) {
       return true;
     }
-    // Also test trimmed password in case of accidental leading/trailing space
     if (typeof candidatePassword === 'string') {
       const trimmed = candidatePassword.trim();
       if (trimmed !== candidatePassword && await bcrypt.compare(trimmed, this.password)) {
@@ -121,7 +124,7 @@ UserSchema.methods.comparePassword = async function(candidatePassword) {
   return false;
 };
 
-// Instance method to export user data without sensitive password hash
+// Return user object without sensitive password or internal fields
 UserSchema.methods.toSafeObject = function() {
   const obj = this.toObject();
   obj.id = obj._id ? obj._id.toString() : obj.id;

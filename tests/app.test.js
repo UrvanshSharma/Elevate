@@ -2,6 +2,7 @@
  * Automated Test Suite for Elevate
  * Runs natively with Node.js built-in test runner (node --test).
  */
+process.env.NODE_ENV = 'test';
 const { describe, it } = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
@@ -361,7 +362,7 @@ describe("Node.js & Express.js Server Integrity", () => {
     }
   });
 
-  it("should return live or curated 2026 campus drives via /api/drives/live", async () => {
+  it("should return offline static mock drives (2-3 companies) when no Gemini API key is provided", async () => {
     const app = require("../server.js");
     const http = require("http");
     const server = http.createServer(app);
@@ -374,9 +375,28 @@ describe("Node.js & Express.js Server Integrity", () => {
       const data = await res.json();
       assert.equal(data.status, "ok");
       assert.ok(Array.isArray(data.drives));
-      assert.ok(data.drives.length >= 10);
+      assert.ok(data.drives.length >= 2 && data.drives.length <= 3);
+      assert.equal(data.source, "offline");
       assert.ok(data.drives[0].companyName);
       assert.ok(data.drives[0].role);
+    } finally {
+      await new Promise((resolve) => server.close(resolve));
+    }
+  });
+
+  it("should report hasGeminiKey on /api/health when environment variable is present", async () => {
+    const app = require("../server.js");
+    const http = require("http");
+    const server = http.createServer(app);
+    await new Promise((resolve) => server.listen(0, resolve));
+    const port = server.address().port;
+
+    try {
+      const res = await fetch(`http://127.0.0.1:${port}/api/health`);
+      assert.equal(res.status, 200);
+      const data = await res.json();
+      assert.equal(data.status, "ok");
+      assert.equal(typeof data.hasGeminiKey, "boolean");
     } finally {
       await new Promise((resolve) => server.close(resolve));
     }

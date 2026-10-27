@@ -1,8 +1,4 @@
-/**
- * Elevate Data Store
- * Contains seed data, default student configuration, initial users, and storage keys.
- * Compatible with both browser globals and CommonJS for testing.
- */
+// Seed data and default configuration for Elevate
 (function (root) {
   "use strict";
 

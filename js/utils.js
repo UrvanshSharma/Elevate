@@ -1,16 +1,8 @@
-/**
- * Elevate Utilities Module
- * Contains pure helper functions for sanitization, formatting, validation, and string utilities.
- * Compatible with both browser globals and CommonJS for testing.
- */
+// Utility helpers for HTML escaping, formatting, and validation
 (function(root) {
   "use strict";
 
-  /**
-   * Escape HTML entities to prevent cross-site scripting (XSS).
-   * @param {string} str - Raw string to escape.
-   * @returns {string} Sanitized string safe for HTML injection.
-   */
+  // Escape HTML to prevent XSS
   function escapeHtml(str) {
     if (typeof str !== "string") return "";
     return str
@@ -21,45 +13,28 @@
       .replace(/'/g, "&#39;");
   }
 
-  /**
-   * Format CGPA to 1 decimal place.
-   * @param {number|string} value - Numerical or string CGPA.
-   * @returns {string} Formatted CGPA string.
-   */
+  // Format CGPA to 1 decimal place
   function formatCgpa(value) {
     const num = Number(value);
     if (isNaN(num)) return "0.0";
     return num.toFixed(1);
   }
 
-  /**
-   * Validate email format with standard pattern.
-   * @param {string} email - Email address to validate.
-   * @returns {boolean} True if valid email.
-   */
+  // Check if email format is valid
   function isValidEmail(email) {
     if (typeof email !== "string") return false;
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     return emailRegex.test(email.trim());
   }
 
-  /**
-   * Validate password complexity:
-   * Minimum 8 characters, at least 1 uppercase letter, 1 number, and 1 special character.
-   * @param {string} password - Password string to validate.
-   * @returns {boolean} True if password meets complexity requirements.
-   */
+  // Password check: 8+ chars, uppercase, number, and special character
   function isValidPassword(password) {
     if (typeof password !== "string") return false;
     const passwordRegex = /^(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
     return passwordRegex.test(password);
   }
 
-  /**
-   * Extract 1 or 2 uppercase initials from a user's name.
-   * @param {string} name - User's full name.
-   * @returns {string} Initials (e.g. "AS" or "ST").
-   */
+  // Extract initials from name (e.g. "Aarav Sharma" -> "AS")
   function getUserInitials(name) {
     const safeName = (name || "").trim();
     if (!safeName) return "ST";
@@ -74,11 +49,26 @@
     return "ST";
   }
 
-  /**
-   * Safe document.getElementById wrapper.
-   * @param {string} id - Element ID.
-   * @returns {HTMLElement|null}
-   */
+  // Sync Gemini API key to local storage for user and global session
+  function syncStoredGeminiKey(email, key) {
+    if (typeof localStorage === "undefined") return;
+    const trimmed = (key || "").trim();
+    try {
+      if (trimmed) {
+        localStorage.setItem("elevate_gemini_api_key", trimmed);
+        if (email) {
+          localStorage.setItem("elevate_gemini_api_key_" + email.toLowerCase(), trimmed);
+        }
+      } else {
+        localStorage.removeItem("elevate_gemini_api_key");
+        if (email) {
+          localStorage.removeItem("elevate_gemini_api_key_" + email.toLowerCase());
+        }
+      }
+    } catch (_) {}
+  }
+
+  // Safe getElementById helper
   function byId(id) {
     if (typeof document === "undefined") return null;
     return document.getElementById(id);
@@ -90,6 +80,7 @@
     isValidEmail: isValidEmail,
     isValidPassword: isValidPassword,
     getUserInitials: getUserInitials,
+    syncStoredGeminiKey: syncStoredGeminiKey,
     byId: byId
   });
 

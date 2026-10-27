@@ -60,11 +60,17 @@
             </div>
           </div>
           <hr class="border-secondary my-3 opacity-25" />
-          <div class="d-flex justify-content-between align-items-center mb-3">
+          <div class="d-flex justify-content-between align-items-center mb-2">
             <span class="small text-uppercase text-secondary fw-semibold"
               style="font-family:var(--font-mono); font-size:0.7rem;">Roll No:</span>
             <span id="menu-roll" class="badge"
               style="background:var(--accent-lime-subtle); color:var(--accent-lime); border:1px solid var(--border-lime); font-family:var(--font-mono);"></span>
+          </div>
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <span class="small text-uppercase text-secondary fw-semibold"
+              style="font-family:var(--font-mono); font-size:0.7rem;">Gemini AI:</span>
+            <span id="menu-gemini-status" class="badge"
+              style="background:rgba(255,92,92,0.15); color:#ff5c5c; border:1px solid rgba(255,92,92,0.3); font-family:var(--font-mono); font-size:0.68rem;">OFFLINE</span>
           </div>
           <button id="logout-btn" type="button" class="btn btn-outline-danger btn-sm w-100 fw-bold rounded-pill">
             Sign Out
@@ -93,9 +99,7 @@
     </div>
   </header>
 
-  <!-- ======================================================================
-         VIEW 1: THE EDITORIAL LANDING PAGE
-         ====================================================================== -->
+  <!-- Landing Page View -->
   <div id="landing-view">
     <main id="scene-hero" class="hero-single-screen">
       <div class="hero-container">
@@ -144,9 +148,7 @@
     </main>
   </div>
 
-  <!-- ======================================================================
-         VIEW 2: THE MAIN PAGE / STUDENT WORKSPACE DASHBOARD
-         ====================================================================== -->
+  <!-- Dashboard Workspace View -->
   <div id="dashboard-view" style="display: none;">
     <div id="main-content">
       <div class="platform-container">
@@ -310,8 +312,8 @@
               <!-- Top Row: Section Kicker & Live AI Status Badge -->
               <div class="d-flex align-items-center gap-2 flex-wrap mb-2">
                 <span class="section-kicker mb-0">Campus Opportunities</span>
-                <span id="live-feed-badge" class="badge-live-gemini">
-                  <span class="live-dot-green"></span> LIVE 2026 BATCH
+                <span id="live-feed-badge" class="badge-live-gemini badge-offline cursor-pointer" title="Gemini AI Status — Click to configure API Key" data-bs-toggle="modal" data-bs-target="#gemini-key-modal">
+                  <span class="live-dot-offline"></span> GEMINI API OFFLINE
                 </span>
               </div>
 
@@ -443,11 +445,48 @@
                 <div class="mb-3">
                   <label class="form-label" for="signup-resume">Upload Resume (PDF / TXT, optional)</label>
                   <input type="file" id="signup-resume" accept=".pdf,.txt,.doc,.docx" class="form-control form-control-sm" />
-                  <div class="form-text small" style="font-size:0.75rem;">AI auto-extracts your technical skills &amp; projects into your profile!</div>
+                  <div class="form-text small" style="font-size:0.75rem;">Upload your resume document to store in your placement profile.</div>
+                </div>
+                <div class="mb-3">
+                  <label class="form-label" for="signup-gemini-key">Gemini API Key (Optional)</label>
+                  <input type="password" id="signup-gemini-key" class="form-control form-control-sm"
+                    placeholder="AIzaSy... (leave blank to stay offline)" autocomplete="off" />
+                  <div class="form-text small" style="font-size:0.75rem;">If not provided, Gemini AI stays offline and only 2-3 static mock drives are shown.</div>
                 </div>
                 <button type="submit" id="signup-submit-btn" class="btn btn-primary w-100 py-2">Create Student Account</button>
               </form>
             </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================================================================
+         GEMINI API KEY MODAL
+         ====================================================================== -->
+  <div class="modal fade" id="gemini-key-modal" tabindex="-1" aria-hidden="true" aria-labelledby="gemini-key-title">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="gemini-key-title">Google Gemini API Key</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" onclick="if(window.ElevateApp) ElevateApp.hideGeminiModal()"></button>
+        </div>
+        <div class="modal-body p-4">
+          <p class="small text-secondary mb-3" style="line-height:1.5;">
+            Elevate uses Google Gemini AI for live 2026 campus placement drive searches and automated resume skills extraction. When no API key is added, Gemini AI runs in <strong>Offline Mode</strong>, showing only 2-3 static mock sample drives.
+          </p>
+          <div class="mb-3">
+            <label class="form-label" for="gemini-key-input">Your Gemini API Key</label>
+            <input type="password" id="gemini-key-input" class="form-control" placeholder="AIzaSy..." />
+            <div class="form-text small mt-1">
+              Need a free key? Generate one at <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" style="color:var(--accent-lime);">Google AI Studio ↗</a>.
+            </div>
+          </div>
+          <div id="gemini-key-status-msg" class="small mb-3" style="font-family:var(--font-mono);"></div>
+          <div class="d-flex gap-2">
+            <button type="button" id="btn-save-gemini-key" class="btn btn-primary btn-sm rounded-pill fw-bold flex-grow-1">Save Key</button>
+            <button type="button" id="btn-clear-gemini-key" class="btn btn-outline-danger btn-sm rounded-pill fw-bold">Remove Key</button>
           </div>
         </div>
       </div>

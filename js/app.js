@@ -1,10 +1,4 @@
-/**
- * Elevate Main Application Module
- * Handles DOM rendering for all platform sections:
- * Overview, Student Profile, Resumes & Certificates, Project Portfolio,
- * Peer Interview Hub, Learning Resources, and Placement Drive filtering,
- * as well as scroll storytelling, capability pillar HUD, and authentication bootstrap.
- */
+// Main frontend application for the Elevate platform
 (function (root) {
   "use strict";
 
@@ -27,7 +21,8 @@
     searchQuery: "",
     data: JSON.parse(JSON.stringify(Data.SEED_DATA)),
     skills: (Data.DEFAULT_SKILLS || []).slice(),
-    activePillar: 0
+    activePillar: 0,
+    serverHasGeminiKey: false
   };
 
   // Pillar metadata for Scene 3: The Transformation
@@ -66,9 +61,7 @@
     }
   ];
 
-  /**
-   * Render platform overview title, description, and key problem points.
-   */
+  // Render overview cards in the hero section
   function renderOverview() {
     const titleEl = Utils.byId("project-title");
     const descEl = Utils.byId("project-description");
@@ -103,10 +96,7 @@
     }
   }
 
-  /**
-   * Render student technical skills tags.
-   * @param {string[]} skillsArray - Array of skill names.
-   */
+  // Render student skill tags
   function renderSkills(skillsArray) {
     const container = Utils.byId("student-skills");
     if (!container) return;
@@ -120,31 +110,19 @@
     container.innerHTML = htmlContent;
   }
 
-  /**
-   * Check if current session belongs to a genuine registered student or the demo account.
-   * @param {Object} [userObj] - Optional user object to check.
-   * @returns {boolean}
-   */
+  // Check if current session belongs to a registered student rather than demo
   function isRealStudent(userObj) {
     const user = (typeof userObj !== "undefined" && userObj !== null) ? userObj : getCurrentUser();
     return Boolean(user && user.email && user.email.toLowerCase() !== "aarav@elevate.edu");
   }
 
-  /**
-   * Retrieve current user object.
-   * @returns {Object|null}
-   */
+  // Get active user from auth module
   function getCurrentUser() {
     const Auth = root.ElevateAuth;
     return (Auth && typeof Auth.getCurrentUser === "function") ? Auth.getCurrentUser() : null;
   }
 
-  /**
-   * Cleans and deduplicates student projects list to guarantee exactly genuine resume projects.
-   * Purges fragments, old dummy cards ("SPEECH", "FEATURED RESUME PROJECT"), and duplicate variants.
-   * @param {Array} projects - Raw project list.
-   * @returns {Array} Clean canonical projects list.
-   */
+  // Deduplicate and clean student project list
   function cleanUserProjects(projects) {
     if (!Array.isArray(projects)) return [];
 
@@ -193,11 +171,7 @@
     return Array.from(canonicalMap.values());
   }
 
-  /**
-   * Cleans and deduplicates student certificates to remove duplicate variants (e.g. Azure AI).
-   * @param {Array} certs - Raw certificate list.
-   * @returns {Array} Clean canonical certificates list.
-   */
+  // Deduplicate and clean student certificate list
   function cleanUserCertificates(certs) {
     if (!Array.isArray(certs)) return [];
     const certMap = new Map();
@@ -245,12 +219,7 @@
     return Array.from(certMap.values());
   }
 
-  /**
-   * Apply user session data to application state.
-   * Real student accounts load ONLY their personal data (no dummy resumes, projects, or certifications).
-   * Demo profiles load the complete seed demo dataset.
-   * @param {Object} [user] - Active user session.
-   */
+  // Sync user profile data to dashboard state
   function applySessionData(user) {
     const activeUser = (typeof user !== "undefined") ? user : getCurrentUser();
     const isReal = isRealStudent(activeUser);
@@ -287,7 +256,7 @@
 
       // Check if user has an active resume but is missing all extracted projects or certifications
       const hasResume = (activeUser.resumes && activeUser.resumes.length > 0) || activeUser.resumeName;
-      const needsAiSync = hasResume && (cleanProjects.length === 0 || state.data.certificates.length <= 1);
+      const needsAiSync = hasResume && hasGeminiApiKey() && (cleanProjects.length === 0 || state.data.certificates.length <= 1);
       if (needsAiSync) {
         setTimeout(function () {
           reanalyzeResumeWithAI(false);
@@ -307,13 +276,7 @@
     renderProjects();
   }
 
-  /**
-   * Render placement drive list filtered by search query.
-   * Uses interactive brick layout with hover reveal for complete details.
-   * - Demo Profile: Renders genuine demo sample placement drive.
-   * - Real Student: Renders live opportunities fetched directly from Google Gemini API.
-   * @param {string} [query] - Optional query string to filter companies.
-   */
+  // Render placement drive cards with search filter
   function renderCompanies(query) {
     const container = Utils.byId("company-list");
     if (!container) return;
@@ -364,7 +327,9 @@
       const salaryText = c.salary || "";
 
       let applyButtonHtml = "";
-      if (c.applyUrl && c.applyUrl !== "#demo-profile") {
+      if (c.applyUrl === "#sample-demo" || c.isSampleMock) {
+        applyButtonHtml = `<button type="button" class="btn btn-outline-warning btn-sm fw-bold rounded-pill text-warning border-warning" onclick="ElevateApp.openGeminiModal();" title="Configure Gemini API key to unlock live placement drives">Offline Demo Mode 🔒</button>`;
+      } else if (c.applyUrl && c.applyUrl !== "#demo-profile") {
         applyButtonHtml = `<a href="${Utils.escapeHtml(c.applyUrl)}" target="_blank" rel="noopener noreferrer" class="btn btn-outline-secondary btn-sm fw-bold rounded-pill text-white border-secondary d-inline-flex align-items-center gap-1" title="Open direct application link">Apply Directly ↗</a>`;
       } else {
         applyButtonHtml = `<button type="button" class="btn btn-outline-secondary btn-sm fw-bold rounded-pill text-white border-secondary" onclick="document.getElementById('open-auth').click();">Apply via Elevate →</button>`;
@@ -463,11 +428,23 @@
     });
   }
 
-  /**
-   * Helper to retrieve optional custom Gemini API Key from localStorage.
-   * @returns {string}
-   */
+  // Sample drives used when Gemini API is offline
+  const OFFLINE_SAMPLE_COMPANIES = (Data.STATIC_OFFLINE_DRIVES || []).slice();
+
+  // Get Gemini API key from session or storage
   function getGeminiApiKey() {
+    const user = getCurrentUser();
+    if (user && user.geminiApiKey && !user.geminiApiKey.includes("YOUR_GEMINI_API_KEY")) {
+      return user.geminiApiKey.trim();
+    }
+    if (user && user.email) {
+      try {
+        const userSpecific = localStorage.getItem("elevate_gemini_api_key_" + user.email.toLowerCase());
+        if (userSpecific && userSpecific.trim() && !userSpecific.includes("YOUR_GEMINI_API_KEY")) {
+          return userSpecific.trim();
+        }
+      } catch (e) {}
+    }
     try {
       const stored = localStorage.getItem("elevate_gemini_api_key");
       if (stored && stored.trim() && !stored.includes("YOUR_GEMINI_API_KEY")) return stored.trim();
@@ -475,278 +452,170 @@
     return "";
   }
 
-  /**
-   * Get the verified 2026 India campus hiring search prompt.
-   * @returns {string}
-   */
-  function getGeminiSearchPrompt() {
-    return `Find up to 15 genuine, currently active software engineering jobs, fresher hiring drives, graduate recruitment programs, and software internships in India for candidates graduating in 2026. Aim for 10–15 verified results whenever enough qualifying opportunities exist.
-
-Use the actual current date at the time of research. Search broadly across established mid-sized technology companies, Indian IT services firms, SaaS companies, engineering and consulting firms, established startups, multinational corporations, and product companies. Do not focus mainly on famous companies such as Google, Microsoft, Amazon, or Adobe. Include reputable employers that students can realistically apply to.
-
-Search official career portals, employer-hosted application forms, Workday, Greenhouse, Lever, and other authorized recruitment platforms. Use multiple distinct search queries and investigate opportunities beyond the first page of search results where possible.
-
-Search for software developer fresher jobs, graduate engineer trainees, associate software engineers, junior developers, campus drives, off-campus drives, and internships for the 2026 batch. Include Java, Python, backend, frontend, full-stack, QA automation, software testing, data engineering, AI/ML, DevOps, cloud engineering, and related technical positions.
-
-First discover a broad pool of approximately 25–40 potential opportunities, where search availability permits. Then investigate the strongest candidates individually. Do not output preliminary search results.
-
-For each opportunity, verify all of the following:
-
-1. The exact role is currently accepting applications, or reliable, current evidence explicitly confirms ongoing shortlisting, assessments, interviews, or candidate processing for the same hiring cycle.
-2. Official evidence establishes that candidates graduating in 2026 are eligible.
-3. The opportunity is available to eligible candidates in India.
-4. The deadline is verified, or applications are explicitly confirmed open without a disclosed deadline.
-5. The direct application URL has been opened and verified for the exact advertised role.
-6. The application process remains available and has not been closed, expired, filled, withdrawn, cancelled, or removed.
-7. Compensation is supported by a reliable source associated with the same role, if disclosed.
-
-Check degree, branch, graduation year, CGPA or percentage, backlogs, experience, technical skills, internship duration, and location restrictions wherever available. Do not assume that a role accepts 2026 graduates merely because it is described as entry-level or suitable for freshers.
-
-Search for additional employers when results are sparse. Prioritize established mid-sized companies and IT services providers instead of repeatedly searching only well-known technology companies. Avoid suspicious recruiters, training institutes advertising jobs, pay-to-apply schemes, unverified employers, and unrelated positions.
-
-Use only these status values:
-
-"Open Drive" means current evidence confirms that applications are accepting submissions and the application process remains available.
-
-"Shortlisting" means applications may have closed, but current, explicit evidence confirms ongoing assessments, interviews, shortlisting, or candidate processing for the same hiring cycle.
-
-Do not rely solely on search snippets, old announcements, archived job listings, an accessible job description, or the absence of a closure notice. A job page remaining online does not prove that applications are open.
-
-A future deadline does not override an explicit closed application status. If sources conflict and the conflict cannot be resolved, exclude the opportunity.
-
-Every application URL must pass the following mandatory validation process before the opportunity can be included.
-
-1. Locate the individual vacancy through the employer's official career portal or an authorized recruitment platform.
-2. Open the exact job listing.
-3. Locate the actual Apply, Apply Now, or equivalent application action.
-4. Follow the application link and redirects where possible.
-5. Open the resulting destination and inspect the page content.
-6. Verify that the destination corresponds to the correct employer, role, requisition, and hiring cycle.
-7. Confirm that the application process is accessible and has not been explicitly closed, removed, or expired.
-8. Preserve the complete working URL, including required requisition identifiers and query parameters.
-9. Recheck the destination immediately before including it in the final JSON.
-
-A successful search result, official domain, HTTP response, redirect, login screen, visible job description, or visible Apply button alone does not prove that the application is active.
-
-Reject any URL that displays messages such as "Page not found", "Sorry, the page you're looking for is not available anymore", "Job no longer available", "Position filled", "Applications closed", or equivalent errors.
-
-Also reject redirects to unrelated vacancies, generic company homepages, generic careers pages, search results, expired third-party listings, and inaccessible application destinations.
-
-Never fabricate URLs, reconstruct application paths from job IDs, guess query parameters, or assume that a URL works because it appears in search results.
-
-Amazon-specific validation rule:
-
-Do not use https://amazon.jobs/en/teams/internships-india as an individual job application URL. If this page or any other Amazon URL displays a page-unavailable message, mark that URL as failed and exclude it.
-
-You may search Amazon's official careers portal for replacement opportunities. However, a replacement qualifies only after you locate an individual vacancy, establish eligibility for 2026 graduates in India, open the actual application destination, and confirm that the application process remains available.
-
-A general Amazon internships page, university hiring page, graduate-program overview, or generic careers page is not an acceptable substitute for the direct application URL of an individual vacancy.
-
-Apply the same rule to every employer.
-
-If a URL fails, search for another vacancy at the same company or move to another employer. Never retain a failed result merely to reach the target number of opportunities.
-
-If the browser cannot follow a redirect or inspect the destination, try another official route to the same vacancy. If the application process still cannot be verified, exclude the opportunity. Do not claim that a URL was tested if the available browsing tools could not open it.
-
-For eligibility, use official evidence from the job description, employer-hosted recruitment form, official hiring announcement, or applicable official graduate hiring policy. Multiple official sources may be used if they clearly refer to the same role or hiring program. Do not transfer eligibility requirements from unrelated positions at the same company.
-
-For deadlines, use the format "MMM DD, YYYY". If no deadline is published, use "Not Disclosed" only when applications are explicitly confirmed open. If a deadline has passed but ongoing shortlisting is verified, report the actual deadline and use the status "Shortlisting". Never invent or estimate deadlines.
-
-For compensation, use the verified annual package or monthly internship stipend, preserving the correct currency and payment period. If compensation is not reliably disclosed, use "Not Disclosed". Do not estimate salaries using industry averages, unrelated vacancies, salary websites, or rumours.
-
-Missing compensation or other optional details must not disqualify an otherwise verifiable opportunity. However, unverified active status, graduation-batch eligibility, India eligibility, or direct application destination is grounds for exclusion.
-
-Prioritize official company career portals, employer-hosted application forms, authorized applicant-tracking systems, and employer-controlled recruitment announcements. Current third-party listings and authorized recruiter announcements may help discover opportunities, but they must not substitute for verification of the exact application destination.
-
-Exclude duplicate listings for the same role and hiring cycle. Do not pad the list with expired opportunities, generic career pages, or repeated listings from multiple websites.
-
-Before including each opportunity, confirm that the employer is genuine, the role is technical, 2026-batch eligibility is established, India eligibility is established, recruitment is active or verified as shortlisting, the deadline and compensation are accurate or correctly marked "Not Disclosed", and the direct application URL has been opened and verified.
-
-Discover approximately 25–40 potential opportunities before final selection where search availability permits. If fewer than 10 pass every mandatory check, expand the search to additional employers, job titles, and authorized recruitment platforms. Make a genuine effort to find at least 10 opportunities without lowering verification standards. If fewer than 10 qualify after a reasonable broad search, return only those that qualify.
-
-Sort opportunities by the nearest verified future deadline first, followed by verified Shortlisting opportunities.
-
-Return only one valid JSON array. Do not include introductory text, explanations, citations outside the JSON, Markdown fences, comments, or any text before or after the array.
-
-Each object must contain exactly these seven keys in this order:
-
-[
-  {
-    "companyName": "Company Name",
-    "role": "Exact Official Role Title",
-    "eligibility": "Verified eligibility requirements for 2026 graduates in India",
-    "salary": "Verified annual package or monthly stipend, or Not Disclosed",
-    "deadline": "MMM DD, YYYY or Not Disclosed",
-    "status": "Open Drive",
-    "applyUrl": "Verified direct application URL"
-  }
-]
-
-All keys and values must be double-quoted strings. Do not add extra fields or use null, numbers, booleans, comments, or trailing commas. Escape special characters according to standard JSON syntax.
-
-Before submitting, validate that the complete output parses as standard JSON, every object contains exactly the seven required keys in the specified order, and every included application URL has passed the mandatory application validation process.
-
-If no opportunities qualify after a reasonable broad search, return exactly [].
-
-Accuracy, genuine active recruitment, verified 2026-batch eligibility, and working direct application links are mandatory. Never invent opportunities or URLs to increase the result count.`;
+  // Check if Gemini key is available (either personal key or configured on server .env)
+  function hasGeminiApiKey() {
+    return Boolean(getGeminiApiKey()) || Boolean(state.serverHasGeminiKey);
   }
 
-  /**
-   * Fetch live opportunities from Google Gemini API using the 2026 search prompt.
-   * Priority 1: gemini-flash-latest with tools: [{ googleSearch: {} }] (Search Grounding)
-   * Priority 2 Fallback: gemini-3.5-flash-lite / gemini-flash-lite-latest with JSON generation
-   * @param {string} [apiKey]
-   * @returns {Promise<Array>}
-   */
-  async function fetchFromGeminiApi(apiKey) {
-    const key = apiKey || getGeminiApiKey();
-    if (!key || key.includes("YOUR_GEMINI_API_KEY")) {
-      throw new Error("No valid Gemini API key configured.");
-    }
-
-    const prompt = getGeminiSearchPrompt();
-
-    // 1. Try with Google Search Grounding first
+  // Check if backend server has Gemini API key configured in .env
+  async function checkServerGeminiStatus() {
     try {
-      const searchUrl = "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=" + encodeURIComponent(key);
-      const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
-      const timeoutId = controller ? setTimeout(function () { controller.abort(); }, 6000) : null;
-
-      const resp = await fetch(searchUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        signal: controller ? controller.signal : undefined,
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          tools: [{ googleSearch: {} }]
-        })
-      });
-
-      if (timeoutId) clearTimeout(timeoutId);
-
+      const resp = await fetch("/api/health");
       if (resp.ok) {
         const data = await resp.json();
-        const candidate = data.candidates && data.candidates[0];
-        const textPart = candidate && candidate.content && candidate.content.parts && candidate.content.parts[0];
-        let rawText = (textPart && textPart.text) || "";
-        rawText = rawText.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
-
-        if (rawText) {
-          const parsed = JSON.parse(rawText);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            return parsed.map(function (item, idx) {
-              const cName = item.companyName || item.name || ("Drive " + (idx + 1));
-              return {
-                companyName: cName,
-                name: cName,
-                role: item.role || "Software Engineer Intern",
-                eligibility: item.eligibility || "B.Tech/BE (2026 Batch), DSA, Problem Solving",
-                salary: item.salary || "Not Disclosed",
-                deadline: item.deadline || "Open Drive",
-                status: item.status || "Open Drive",
-                applyUrl: item.applyUrl || "https://unstop.com",
-                source: "Gemini AI (Search Grounded)"
-              };
-            });
+        if (data && data.hasGeminiKey) {
+          state.serverHasGeminiKey = true;
+          updateGeminiBadge();
+          if (root.ElevateAuth && typeof root.ElevateAuth.updateGeminiStatus === "function") {
+            root.ElevateAuth.updateGeminiStatus(true);
           }
+          return true;
         }
+      }
+    } catch (_) {}
+    return false;
+  }
+
+  // Update Gemini badge status on UI
+  function updateGeminiBadge(sourceName) {
+    const badge = Utils.byId("live-feed-badge");
+    if (!badge) return;
+
+    if (hasGeminiApiKey()) {
+      badge.className = "badge-live-gemini cursor-pointer";
+      const now = new Date();
+      const timeStr = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      const label = sourceName || (getGeminiApiKey() ? "Gemini AI" : "Gemini AI • Active");
+      badge.innerHTML = `<span class="live-dot-green"></span> LIVE (${label} • ${timeStr})`;
+    } else {
+      badge.className = "badge-live-gemini badge-offline cursor-pointer";
+      badge.innerHTML = `<span class="live-dot-offline"></span> GEMINI API OFFLINE`;
+    }
+  }
+
+  // Open Gemini API key modal
+  function openGeminiModal() {
+    const input = Utils.byId("gemini-key-input");
+    const statusMsg = Utils.byId("gemini-key-status-msg");
+    const key = getGeminiApiKey();
+    if (input) {
+      input.value = key;
+    }
+    if (statusMsg) {
+      if (key) {
+        statusMsg.style.color = "#00f3a4";
+        statusMsg.textContent = "● Personal Gemini API Key is configured and active.";
+      } else if (state.serverHasGeminiKey) {
+        statusMsg.style.color = "#00f3a4";
+        statusMsg.textContent = "● Gemini API Key is loaded from server .env file and active.";
       } else {
-        console.warn("Search grounding HTTP " + resp.status + ", falling back to direct JSON models.");
-      }
-    } catch (searchErr) {
-      console.warn("Search grounding query ended (" + searchErr.message + "), using fallback models.");
-    }
-
-    // 2. Fallback: Query active models with JSON generation if search tool is rate-limited
-    const fallbackModels = ["gemini-3.5-flash-lite", "gemini-flash-lite-latest", "gemini-3-flash-preview"];
-    const fallbackPrompt = `Find currently active campus hiring drives, software internships, and fresher placement opportunities in India for 2026 graduates.
-Provide 10 verified campus recruitment opportunities and engineering internships for the 2026 batch at top technology companies in India (such as Google, Microsoft, Amazon, Tata Consultancy Services, Qualcomm, Goldman Sachs, Cisco, Infosys).
-
-Return ONLY a valid JSON array of objects using this exact structure:
-[
-  {
-    "companyName": "Company Name",
-    "role": "Role Title",
-    "eligibility": "Eligibility requirements including 2026 batch eligibility, degrees, CGPA, and core technical skills",
-    "salary": "Package or stipend details",
-    "deadline": "Application deadline or Open Drive",
-    "status": "Open Drive or Shortlisting",
-    "applyUrl": "Official direct student careers URL"
-  }
-]`;
-    let lastError = null;
-
-    for (let i = 0; i < fallbackModels.length; i++) {
-      const model = fallbackModels[i];
-      try {
-        const url = "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent?key=" + encodeURIComponent(key);
-        const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
-        const timeoutId = controller ? setTimeout(function () { controller.abort(); }, 25000) : null;
-
-        const resp = await fetch(url, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          signal: controller ? controller.signal : undefined,
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: fallbackPrompt }] }],
-            generationConfig: {
-              responseMimeType: "application/json"
-            }
-          })
-        });
-
-        if (timeoutId) clearTimeout(timeoutId);
-
-        if (!resp.ok) {
-          throw new Error("HTTP " + resp.status);
-        }
-
-        const data = await resp.json();
-        const candidate = data.candidates && data.candidates[0];
-        const textPart = candidate && candidate.content && candidate.content.parts && candidate.content.parts[0];
-        let rawText = (textPart && textPart.text) || "";
-
-        rawText = rawText.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
-        const parsed = JSON.parse(rawText);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed.map(function (item, idx) {
-            const cName = item.companyName || item.name || ("Drive " + (idx + 1));
-            return {
-              companyName: cName,
-              name: cName,
-              role: item.role || "Software Engineer Intern",
-              eligibility: item.eligibility || "B.Tech/BE (2026 Batch), DSA, Problem Solving",
-              salary: item.salary || "Not Disclosed",
-              deadline: item.deadline || "Open Drive",
-              status: item.status || "Open Drive",
-              applyUrl: item.applyUrl || "https://unstop.com",
-              source: "Gemini AI (" + model + ")"
-            };
-          });
-        }
-      } catch (err) {
-        lastError = err;
-        console.warn("Model " + model + " error:", err.message);
+        statusMsg.style.color = "#ff5c5c";
+        statusMsg.textContent = "● Gemini AI is currently OFFLINE (No API Key in profile or .env).";
       }
     }
+    const modalEl = Utils.byId("gemini-key-modal");
+    if (!modalEl) return;
 
-    throw lastError || new Error("Unable to fetch live drives from Gemini API.");
+    if (typeof bootstrap !== "undefined" && bootstrap.Modal) {
+      bootstrap.Modal.getOrCreateInstance(modalEl).show();
+      return;
+    }
+
+    modalEl.style.display = "block";
+    modalEl.classList.add("show");
+    modalEl.removeAttribute("aria-hidden");
+    modalEl.setAttribute("aria-modal", "true");
   }
 
-  /**
-   * Fetch live opportunities strictly through the Gemini API and command prompt.
-   * As soon as it finishes fetching, automatically updates the jobs in the jobs section.
-   * Completely purges Remotive or third-party web scraping feeds.
-   * @param {boolean} [forceRefresh=false]
-   */
-  async function fetchLiveOpportunities(forceRefresh) {
-    const isReal = isRealStudent();
+  // Close Gemini API key modal
+  function hideGeminiModal() {
+    const modalEl = Utils.byId("gemini-key-modal");
+    if (!modalEl) return;
+
+    if (typeof bootstrap !== "undefined" && bootstrap.Modal) {
+      const modal = bootstrap.Modal.getInstance(modalEl);
+      if (modal) modal.hide();
+      return;
+    }
+
+    modalEl.style.display = "none";
+    modalEl.classList.remove("show");
+    modalEl.setAttribute("aria-hidden", "true");
+    modalEl.removeAttribute("aria-modal");
+  }
+
+  // Save or clear user's Gemini key
+  async function saveGeminiKey(key) {
+    const trimmed = (key || "").trim();
     const user = getCurrentUser();
+
+    Utils.syncStoredGeminiKey(user ? user.email : null, trimmed);
+
+    if (user) {
+      user.geminiApiKey = trimmed;
+      if (root.ElevateAuth && typeof root.ElevateAuth.updateUser === "function") {
+        root.ElevateAuth.updateUser(user);
+      }
+    }
+
+    // Persist to backend MongoDB if user is authenticated
+    const token = (root.ElevateAuth && typeof root.ElevateAuth.getToken === "function") ? root.ElevateAuth.getToken() : null;
+    if (token) {
+      try {
+        await fetch("/api/user/gemini-key", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer " + token
+          },
+          body: JSON.stringify({ geminiApiKey: trimmed })
+        });
+      } catch (err) {
+        console.warn("Backend save gemini key warning:", err);
+      }
+    }
+
+    if (root.ElevateAuth && typeof root.ElevateAuth.updateAuthUI === "function") {
+      root.ElevateAuth.updateAuthUI();
+    }
+
+    updateGeminiBadge();
+    hideGeminiModal();
+
+    if (trimmed) {
+      showStatusMessage("Gemini API key saved! Fetching live 2026 drives...");
+      fetchLiveOpportunities(true);
+    } else {
+      showStatusMessage("Gemini API key removed. Gemini AI is now offline.");
+      state.data.companies = OFFLINE_SAMPLE_COMPANIES.slice();
+      renderCompanies();
+    }
+  }
+
+  // Clear Gemini API key
+  async function clearGeminiKey() {
+    await saveGeminiKey("");
+  }
+
+  // Fetch live placement drives from server
+  async function fetchLiveOpportunities(forceRefresh) {
+    const hasKey = hasGeminiApiKey();
     const badge = Utils.byId("live-feed-badge");
     const syncBtn = Utils.byId("btn-sync-drives");
-    const container = Utils.byId("company-list");
+
+    // If no API key configured: stays offline, renders only 2-3 static mock companies
+    if (!hasKey) {
+      state.data.companies = OFFLINE_SAMPLE_COMPANIES.slice();
+      renderCompanies();
+      updateGeminiBadge();
+      if (forceRefresh) {
+        showStatusMessage("Gemini API is offline: Please add your Gemini API Key in your profile to fetch live placement drives.");
+      }
+      return state.data.companies;
+    }
 
     if (badge) {
+      badge.className = "badge-live-gemini cursor-pointer";
       badge.innerHTML = `<span class="spinner-grow spinner-grow-sm me-1" role="status" style="width:7px; height:7px;" aria-hidden="true"></span> SEARCHING LIVE GEMINI 2026 DRIVES...`;
     }
     if (syncBtn) {
@@ -754,122 +623,41 @@ Return ONLY a valid JSON array of objects using this exact structure:
       if (svg) svg.style.animation = "spin 0.6s linear infinite";
     }
 
-    // Show scanning UI if no active drives loaded yet
-    if (!state.data.companies || state.data.companies.length === 0 || (state.data.companies.length === 1 && state.data.companies[0].isDemo)) {
-      if (container && (isReal || forceRefresh)) {
-        container.innerHTML = `
-          <div class="nested-subcard p-4 text-center my-3 w-100">
-            <div class="spinner-border text-success mb-3" role="status" style="width:2.2rem; height:2.2rem;"></div>
-            <h6 class="fw-bold text-white mb-1">Searching Google Gemini for Active 2026 Drives in India...</h6>
-            <p class="text-secondary small mb-0">Verifying live deadlines, packages, and direct apply links in real-time.</p>
-          </div>
-        `;
-      }
-    }
-
     try {
-      let liveDrives = null;
-      let sourceName = "Gemini AI";
-
-      // 1. Primary: Query backend /api/drives/live (securely uses server .env)
-      try {
-        const resp = await fetch("/api/drives/live");
-        if (resp.ok) {
-          const payload = await resp.json();
-          if (Array.isArray(payload.drives) && payload.drives.length > 0) {
-            liveDrives = payload.drives;
-            sourceName = payload.source === "gemini" ? "Gemini AI" : "Verified 2026 Batch";
-          }
-        }
-      } catch (backendErr) {
-        console.warn("Backend /api/drives/live not reachable, checking client key:", backendErr.message);
+      const apiKey = getGeminiApiKey();
+      const headers = {};
+      if (apiKey) {
+        headers["x-gemini-key"] = apiKey;
       }
+      const resp = await fetch("/api/drives/live", { headers });
 
-      // 2. Client-side fallback if user provided a custom key in localStorage
-      if (!liveDrives || liveDrives.length === 0) {
-        const customKey = getGeminiApiKey();
-        if (customKey) {
-          try {
-            liveDrives = await fetchFromGeminiApi(customKey);
-            if (liveDrives && liveDrives.length > 0) {
-              sourceName = "Gemini AI";
-            }
-          } catch (apiErr) {
-            console.warn("Live Gemini search attempt failed:", apiErr.message);
+      if (resp.ok) {
+        const payload = await resp.json();
+        if (payload.status === "ok" && Array.isArray(payload.drives) && payload.drives.length > 0) {
+          if (payload.source === "gemini") {
+            state.data.companies = payload.drives;
+            renderCompanies();
+            updateGeminiBadge("Gemini AI");
+            return payload.drives;
           }
         }
       }
 
-      // AS SOON AS IT FINISHES FETCHING: AUTOMATICALLY UPDATE JOBS IN THE JOBS SECTION!
-      if (liveDrives && liveDrives.length > 0) {
-        state.data.companies = liveDrives;
-        if (user && user.email && isReal) {
-          try {
-            localStorage.setItem("elevate_companies_" + user.email.toLowerCase(), JSON.stringify(liveDrives));
-          } catch (e) {}
-        }
-        try {
-          localStorage.setItem("elevate_companies_gemini_2026", JSON.stringify(liveDrives));
-        } catch (e) {}
-
-        renderCompanies();
-
-        const now = new Date();
-        const timeStr = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-        if (badge) {
-          badge.innerHTML = `<span class="live-dot-green"></span> LIVE (${sourceName} • ${timeStr})`;
-        }
-        return liveDrives;
+      // If backend returned offline or quota exceeded
+      state.data.companies = OFFLINE_SAMPLE_COMPANIES.slice();
+      renderCompanies();
+      if (badge) {
+        badge.className = "badge-live-gemini badge-offline cursor-pointer";
+        badge.innerHTML = `<span class="live-dot-offline"></span> GEMINI API OFFLINE`;
       }
-
-      // If live call returned no results right now:
-      if (isReal) {
-        // Try to load student's previously cached Gemini results
-        let cachedDrives = null;
-        if (user && user.email) {
-          try {
-            const cached = localStorage.getItem("elevate_companies_" + user.email.toLowerCase());
-            if (cached) cachedDrives = JSON.parse(cached);
-          } catch (e) {}
-        }
-        if (!cachedDrives) {
-          try {
-            const globalCached = localStorage.getItem("elevate_companies_gemini_2026");
-            if (globalCached) cachedDrives = JSON.parse(globalCached);
-          } catch (e) {}
-        }
-
-        if (cachedDrives && cachedDrives.length > 0) {
-          state.data.companies = cachedDrives;
-          renderCompanies();
-          if (badge) {
-            badge.innerHTML = `<span class="live-dot-green"></span> LIVE (Cached • Gemini AI)`;
-          }
-          return cachedDrives;
-        }
-
-        // Keep companies empty and show status
-        state.data.companies = [];
-        renderCompanies();
-        if (badge) {
-          badge.innerHTML = `<span class="live-dot-orange"></span> SEARCH IDLE / RETRY`;
-        }
-        return [];
-      } else {
-        // Demo profile: if test live sync was clicked without drives returned, keep demo data
-        if (!state.data.companies || state.data.companies.length === 0) {
-          state.data.companies = (Data && Data.SEED_DATA && Data.SEED_DATA.companies) ? Data.SEED_DATA.companies.slice() : [];
-        }
-        renderCompanies();
-        if (badge) {
-          badge.innerHTML = `<span class="badge-status-lime" style="font-size:0.65rem;">DEMO PROFILE DATA</span>`;
-        }
-        return state.data.companies;
-      }
+      return state.data.companies;
     } catch (err) {
       console.warn("Failed to fetch live drives via Gemini:", err);
+      state.data.companies = OFFLINE_SAMPLE_COMPANIES.slice();
+      renderCompanies();
       if (badge) {
-        badge.innerHTML = `<span class="live-dot-green"></span> 2026 BATCH`;
+        badge.className = "badge-live-gemini badge-offline cursor-pointer";
+        badge.innerHTML = `<span class="live-dot-offline"></span> GEMINI API OFFLINE`;
       }
     } finally {
       if (syncBtn) {
@@ -879,85 +667,30 @@ Return ONLY a valid JSON array of objects using this exact structure:
     }
   }
 
-  /**
-   * Render active and backup resume versions.
-   * When multiple versions exist, displays top version on front and reveals others on hover/tap.
-   */
-  function renderResumes() {
-    const container = Utils.byId("resume-list");
-    if (!container) return;
-
-    const resumes = state.data.resumes || [];
-    if (resumes.length === 0) {
-      container.innerHTML = `
-        <div class="p-3 text-center nested-subcard my-2" style="background:var(--bg-canvas); border:1px dashed var(--border-subtle); border-radius:12px;">
-          <small class="text-secondary" style="font-family:var(--font-mono); font-size:0.75rem;">No resume uploaded yet. Click "Upload New Version" above to analyze your resume with AI.</small>
+  // Format an asset item row (resumes and certificates)
+  function renderAssetRow(title, subtitle, badge) {
+    return `
+      <div class="asset-item-row">
+        <div>
+          <strong class="d-block small text-white">${Utils.escapeHtml(title || "")}</strong>
+          <small style="color:var(--text-muted); font-size:0.75rem; font-family:var(--font-mono);">${Utils.escapeHtml(subtitle || "")}</small>
         </div>
-      `;
-      return;
-    }
-
-    if (resumes.length === 1) {
-      const r = resumes[0];
-      container.innerHTML = `
-        <div class="asset-item-row">
-          <div>
-            <strong class="d-block small text-white">${Utils.escapeHtml(r.title)}</strong>
-            <small style="color:var(--text-muted); font-size:0.75rem; font-family:var(--font-mono);">${Utils.escapeHtml(r.detail)}</small>
-          </div>
-          <span class="badge-status-lime">${Utils.escapeHtml(r.status)}</span>
-        </div>
-      `;
-      return;
-    }
-
-    const topResume = resumes[0];
-    const remainingResumes = resumes.slice(1);
-
-    let drawerItemsHtml = "";
-    for (let i = 0; i < remainingResumes.length; i++) {
-      const r = remainingResumes[i];
-      drawerItemsHtml += `
-        <div class="asset-item-row">
-          <div>
-            <strong class="d-block small text-white">${Utils.escapeHtml(r.title)}</strong>
-            <small style="color:var(--text-muted); font-size:0.75rem; font-family:var(--font-mono);">${Utils.escapeHtml(r.detail)}</small>
-          </div>
-          <span class="badge-status-lime">${Utils.escapeHtml(r.status)}</span>
-        </div>
-      `;
-    }
-
-    container.innerHTML = `
-      <div class="asset-stack-brick" role="region" aria-label="Resume versions stack">
-        <!-- Top-most Resume Version (Always visible on front) -->
-        <div class="asset-item-row">
-          <div>
-            <strong class="d-block small text-white">${Utils.escapeHtml(topResume.title)}</strong>
-            <small style="color:var(--text-muted); font-size:0.75rem; font-family:var(--font-mono);">${Utils.escapeHtml(topResume.detail)}</small>
-          </div>
-          <span class="badge-status-lime">${Utils.escapeHtml(topResume.status)}</span>
-        </div>
-
-        <!-- Idle Hint: indicates additional resume versions exist -->
-        <div class="asset-idle-hint" title="Hover to view previous resume versions">
-          <div class="d-flex align-items-center gap-2">
-            <span class="brick-hint-dot"></span>
-            <span style="font-family:var(--font-mono); font-size:0.75rem; color:var(--text-secondary); font-weight:600;">+${remainingResumes.length}, Hover to reveal</span>
-          </div>
-          <span style="font-family:var(--font-mono); font-size:0.75rem; color:var(--accent-coral);">&darr;</span>
-        </div>
-
-        <!-- Full Drawer: Reveals smoothly downwards on hover or tap -->
-        <div class="asset-expanded-drawer d-flex flex-column gap-2 mt-2">
-          ${drawerItemsHtml}
-          <div class="asset-drawer-footer mt-1">
-            <small>Showing all ${resumes.length} versions &uarr;</small>
-          </div>
-        </div>
+        <span class="badge-status-lime">${Utils.escapeHtml(badge || "Verified")}</span>
       </div>
     `;
+  }
 
+  function renderResumeRow(r) {
+    return r ? renderAssetRow(r.title || "Resume", r.detail || "", r.status || "Active") : "";
+  }
+
+  function renderCertRow(c) {
+    return c ? renderAssetRow(c.title || "Certification", c.issuer || c.detail || "Verified Credential", c.tag || c.status || "Verified") : "";
+  }
+
+  // Handle disclosure drawer for stacked items
+  function attachStackDrawerListeners(container) {
+    if (!container) return;
     const stack = container.querySelector(".asset-stack-brick");
     if (stack) {
       stack.addEventListener("click", function (e) {
@@ -978,111 +711,78 @@ Return ONLY a valid JSON array of objects using this exact structure:
     }
   }
 
-  /**
-   * Render verified credentials and course certifications.
-   * Displays the top-most item on front; smoothly reveals all others on hover/tap.
-   */
-  function renderCertificates() {
-    const container = Utils.byId("certificate-grid");
+  // Generic drawer stack renderer for asset bricks (resumes & certificates)
+  function renderAssetStack(containerId, items, rowRenderer, emptyMsg, itemLabel) {
+    const container = Utils.byId(containerId);
     if (!container) return;
 
+    if (items.length === 0) {
+      container.innerHTML = `
+        <div class="p-3 text-center nested-subcard my-2" style="background:var(--bg-canvas); border:1px dashed var(--border-subtle); border-radius:12px;">
+          <small class="text-secondary" style="font-family:var(--font-mono); font-size:0.75rem;">${emptyMsg}</small>
+        </div>
+      `;
+      return;
+    }
+
+    if (items.length === 1) {
+      container.innerHTML = rowRenderer(items[0]);
+      return;
+    }
+
+    const topItem = items[0];
+    const remainingItems = items.slice(1);
+    const drawerItemsHtml = remainingItems.map(rowRenderer).join("");
+
+    container.innerHTML = `
+      <div class="asset-stack-brick" role="region" aria-label="${Utils.escapeHtml(itemLabel)} stack">
+        ${rowRenderer(topItem)}
+        <div class="asset-idle-hint" title="Hover to view all ${Utils.escapeHtml(itemLabel)}">
+          <div class="d-flex align-items-center gap-2">
+            <span class="brick-hint-dot"></span>
+            <span style="font-family:var(--font-mono); font-size:0.75rem; color:var(--text-secondary); font-weight:600;">+${remainingItems.length}, Hover to reveal</span>
+          </div>
+          <span style="font-family:var(--font-mono); font-size:0.75rem; color:var(--accent-coral);">&darr;</span>
+        </div>
+        <div class="asset-expanded-drawer d-flex flex-column gap-2 mt-2">
+          ${drawerItemsHtml}
+          <div class="asset-drawer-footer mt-1">
+            <small>Showing all ${items.length} ${Utils.escapeHtml(itemLabel)} &uarr;</small>
+          </div>
+        </div>
+      </div>
+    `;
+
+    attachStackDrawerListeners(container);
+  }
+
+  // Render active and backup resume versions
+  function renderResumes() {
+    renderAssetStack(
+      "resume-list",
+      state.data.resumes || [],
+      renderResumeRow,
+      'No resume uploaded yet. Click "Upload New Version" above to analyze your resume with AI.',
+      "versions"
+    );
+  }
+
+  // Render verified credentials and course certifications
+  function renderCertificates() {
     const rawCertificates = state.data.certificates || [];
     const certificates = isRealStudent() ? cleanUserCertificates(rawCertificates) : rawCertificates;
     state.data.certificates = certificates;
 
-    if (certificates.length === 0) {
-      container.innerHTML = `
-        <div class="p-3 text-center nested-subcard my-2" style="background:var(--bg-canvas); border:1px dashed var(--border-subtle); border-radius:12px;">
-          <small class="text-secondary" style="font-family:var(--font-mono); font-size:0.75rem;">No certifications yet. Upload a resume or click "+ Add Certification" above to add your credentials.</small>
-        </div>
-      `;
-      return;
-    }
-
-    if (certificates.length === 1) {
-      const c = certificates[0];
-      container.innerHTML = `
-        <div class="asset-item-row">
-          <div>
-            <strong class="d-block small text-white">${Utils.escapeHtml(c.title)}</strong>
-            <small style="color:var(--text-muted); font-size:0.75rem; font-family:var(--font-mono);">${Utils.escapeHtml(c.issuer)}</small>
-          </div>
-          <span class="badge-status-cyan">${Utils.escapeHtml(c.tag || "Credential")}</span>
-        </div>
-      `;
-      return;
-    }
-
-    const topCert = certificates[0];
-    const remainingCerts = certificates.slice(1);
-
-    let drawerItemsHtml = "";
-    for (let i = 0; i < remainingCerts.length; i++) {
-      const c = remainingCerts[i];
-      drawerItemsHtml += `
-        <div class="asset-item-row">
-          <div>
-            <strong class="d-block small text-white">${Utils.escapeHtml(c.title)}</strong>
-            <small style="color:var(--text-muted); font-size:0.75rem; font-family:var(--font-mono);">${Utils.escapeHtml(c.issuer)}</small>
-          </div>
-          <span class="badge-status-cyan">${Utils.escapeHtml(c.tag || "Credential")}</span>
-        </div>
-      `;
-    }
-
-    container.innerHTML = `
-      <div class="asset-stack-brick" role="region" aria-label="Verified certifications stack">
-        <!-- Top-most Certification (Always visible on front) -->
-        <div class="asset-item-row">
-          <div>
-            <strong class="d-block small text-white">${Utils.escapeHtml(topCert.title)}</strong>
-            <small style="color:var(--text-muted); font-size:0.75rem; font-family:var(--font-mono);">${Utils.escapeHtml(topCert.issuer)}</small>
-          </div>
-          <span class="badge-status-cyan">${Utils.escapeHtml(topCert.tag || "Credential")}</span>
-        </div>
-
-        <!-- Subtle Idle Hint: tells user how many more certifications exist -->
-        <div class="asset-idle-hint" title="Hover to view all certifications">
-          <div class="d-flex align-items-center gap-2">
-            <span class="brick-hint-dot"></span>
-            <span style="font-family:var(--font-mono); font-size:0.75rem; color:var(--text-secondary); font-weight:600;">+${remainingCerts.length}, Hover to reveal</span>
-          </div>
-          <span style="font-family:var(--font-mono); font-size:0.75rem; color:var(--accent-coral);">&darr;</span>
-        </div>
-
-        <!-- Full Drawer: Reveals smoothly downwards on hover or tap -->
-        <div class="asset-expanded-drawer d-flex flex-column gap-2 mt-2">
-          ${drawerItemsHtml}
-          <div class="asset-drawer-footer mt-1">
-            <small>Showing all ${certificates.length} certifications &uarr;</small>
-          </div>
-        </div>
-      </div>
-    `;
-
-    const stack = container.querySelector(".asset-stack-brick");
-    if (stack) {
-      stack.addEventListener("click", function (e) {
-        if (e.target.closest("a, button, input")) return;
-        stack.classList.toggle("is-expanded");
-      });
-      stack.addEventListener("mouseleave", function () {
-        stack.classList.remove("is-expanded");
-      });
-      stack.addEventListener("mouseout", function (e) {
-        if (!stack.contains(e.relatedTarget)) {
-          stack.classList.remove("is-expanded");
-        }
-      });
-      stack.addEventListener("pointerleave", function () {
-        stack.classList.remove("is-expanded");
-      });
-    }
+    renderAssetStack(
+      "certificate-grid",
+      certificates,
+      renderCertRow,
+      'No certifications yet. Upload a resume or click "+ Add Certification" above to add your credentials.',
+      "certifications"
+    );
   }
 
-  /**
-   * Render featured student projects.
-   */
+  // Render featured student projects
   function renderProjects() {
     const container = Utils.byId("project-grid");
     if (!container) return;
@@ -1136,9 +836,7 @@ Return ONLY a valid JSON array of objects using this exact structure:
     container.innerHTML = htmlContent;
   }
 
-  /**
-   * Render peer interview experiences cards.
-   */
+  // Render peer interview experiences
   function renderInterviews() {
     const container = Utils.byId("interview-list");
     if (!container) return;
@@ -1165,9 +863,7 @@ Return ONLY a valid JSON array of objects using this exact structure:
     container.innerHTML = htmlContent;
   }
 
-  /**
-   * Render preparation study packs.
-   */
+  // Render preparation study packs
   function renderResources() {
     const container = Utils.byId("resource-list");
     if (!container) return;
@@ -1191,9 +887,7 @@ Return ONLY a valid JSON array of objects using this exact structure:
     container.innerHTML = htmlContent;
   }
 
-  /**
-   * Render all application sections.
-   */
+  // Render all dashboard sections
   function renderAll() {
     renderOverview();
     renderSkills(state.skills);
@@ -1205,10 +899,7 @@ Return ONLY a valid JSON array of objects using this exact structure:
     renderResources();
   }
 
-  /**
-   * Display temporary toast or status message on UI.
-   * @param {string} text - Message text.
-   */
+  // Show temporary toast message
   function showStatusMessage(text) {
     const statusMsg = Utils.byId("upload-status");
     if (!statusMsg) return;
@@ -1220,10 +911,7 @@ Return ONLY a valid JSON array of objects using this exact structure:
     }, 3000);
   }
 
-  /**
-   * Update the HUD Preview Screen in Scene 3: The Transformation.
-   * @param {number} index - Index of selected capability pillar (0-3).
-   */
+  // Update active feature pillar preview
   function setPillar(index) {
     state.activePillar = index;
     const p = PILLARS[index];
@@ -1262,10 +950,7 @@ Return ONLY a valid JSON array of objects using this exact structure:
     });
   }
 
-  /**
-   * Bind interactive storytelling: scroll parallax for Scene 2 & 3,
-   * live footer clock, section spy, and pillar click listeners.
-   */
+  // Setup scroll parallax, clock, and section highlighting
   function initStorytelling() {
     // 1. Pillar Click Listeners
     const pillarItems = document.querySelectorAll(".pillar-item");
@@ -1416,9 +1101,7 @@ Return ONLY a valid JSON array of objects using this exact structure:
     window.addEventListener("resize", onScroll, { passive: true });
   }
 
-  /**
-   * Switch view to the main student workspace dashboard.
-   */
+  // Switch view to dashboard
   function showDashboard() {
     const landingView = Utils.byId("landing-view");
     const dashboardView = Utils.byId("dashboard-view");
@@ -1432,9 +1115,7 @@ Return ONLY a valid JSON array of objects using this exact structure:
     renderAll();
   }
 
-  /**
-   * Switch view to the landing page.
-   */
+  // Switch view to landing page
   function showLanding() {
     const landingView = Utils.byId("landing-view");
     const dashboardView = Utils.byId("dashboard-view");
@@ -1448,13 +1129,7 @@ Return ONLY a valid JSON array of objects using this exact structure:
     renderOverview();
   }
 
-  /**
-   * Integrates resume parse results (skills, projects, certifications) into state and active user.
-   * Eliminates clone code between initial upload and re-analysis.
-   * @param {Object} parseResult - Parsed resume result from server.
-   * @param {string} filename - Associated resume filename.
-   * @param {boolean} [showNotice=true] - Whether to show feedback toast.
-   */
+  // Apply parsed resume data (skills, projects, certifications)
   function applyResumeParseResult(parseResult, filename, showNotice) {
     if (!parseResult) return;
 
@@ -1522,14 +1197,17 @@ Return ONLY a valid JSON array of objects using this exact structure:
     }
   }
 
-  /**
-   * Re-analyze active resume with Gemini AI to extract complete projects, certifications & skills.
-   * Cleans up any placeholder projects and saves the verified dataset to user storage.
-   * @param {boolean} [showNotice=true] - Whether to show status notifications.
-   */
+  // Re-analyze active resume with Gemini AI
   async function reanalyzeResumeWithAI(showNotice) {
     const user = getCurrentUser();
     if (!user || !isRealStudent(user)) return;
+
+    if (!hasGeminiApiKey()) {
+      if (showNotice !== false) {
+        showStatusMessage("Gemini API is offline: Please configure your Gemini API Key in your profile to use AI resume analysis.");
+      }
+      return;
+    }
 
     if (showNotice !== false) {
       showStatusMessage("Analyzing resume with Gemini AI (extracting skills, projects & certs)...");
@@ -1569,9 +1247,7 @@ Return ONLY a valid JSON array of objects using this exact structure:
     }
   }
 
-  /**
-   * Bind event listeners for company search, resume upload, and resume download.
-   */
+  // Bind UI event listeners
   function bindEvents() {
     const searchInput = Utils.byId("company-search");
     if (searchInput) {
@@ -1600,6 +1276,32 @@ Return ONLY a valid JSON array of objects using this exact structure:
         const file = e.target.files && e.target.files[0];
         if (!file) return;
 
+        if (!hasGeminiApiKey()) {
+          state.data.resumes.unshift({
+            title: "Resume - " + file.name,
+            detail: "File size: " + (file.size / 1024).toFixed(1) + " KB",
+            status: "Active"
+          });
+          renderResumes();
+          showStatusMessage("Uploaded " + file.name + " successfully. (AI analysis skipped — Gemini API offline).");
+
+          try {
+            const formData = new FormData();
+            formData.append("resume", file);
+            const token = (root.ElevateAuth && typeof root.ElevateAuth.getToken === "function")
+              ? root.ElevateAuth.getToken()
+              : null;
+            await fetch("/api/resume/parse", {
+              method: "POST",
+              headers: {
+                ...(token ? { "Authorization": "Bearer " + token } : {})
+              },
+              body: formData
+            });
+          } catch (_) {}
+          return;
+        }
+
         state.data.resumes.unshift({
           title: "Resume - " + file.name,
           detail: "File size: " + (file.size / 1024).toFixed(1) + " KB",
@@ -1625,23 +1327,23 @@ Return ONLY a valid JSON array of objects using this exact structure:
             body: formData
           });
 
-          if (res.ok) {
-            const parseResult = await res.json();
-            applyResumeParseResult(parseResult, file.name, true);
-          } else {
+          function handleUploadFallback() {
             if (state.data.resumes.length > 0) {
               state.data.resumes[0].status = "Active";
               renderResumes();
             }
             showStatusMessage("Uploaded " + file.name + " successfully!");
           }
+
+          if (res.ok) {
+            const parseResult = await res.json();
+            applyResumeParseResult(parseResult, file.name, true);
+          } else {
+            handleUploadFallback();
+          }
         } catch (err) {
           console.warn("Resume parsing error:", err);
-          if (state.data.resumes.length > 0) {
-            state.data.resumes[0].status = "Active";
-            renderResumes();
-          }
-          showStatusMessage("Uploaded " + file.name + " successfully!");
+          handleUploadFallback();
         }
       });
     }
@@ -1727,8 +1429,13 @@ Return ONLY a valid JSON array of objects using this exact structure:
     const heroBtnLaunch = Utils.byId("hero-btn-launch");
     if (heroBtnLaunch) {
       heroBtnLaunch.addEventListener("click", function () {
-        const openAuth = Utils.byId("open-auth");
-        if (openAuth) openAuth.click();
+        const Auth = root.ElevateAuth;
+        if (Auth && typeof Auth.getCurrentUser === "function" && Auth.getCurrentUser()) {
+          showDashboard();
+        } else {
+          const openAuth = Utils.byId("open-auth");
+          if (openAuth) openAuth.click();
+        }
       });
     }
 
@@ -1751,6 +1458,47 @@ Return ONLY a valid JSON array of objects using this exact structure:
       });
     }
 
+    // Gemini API Key Modal Controls
+    const liveFeedBadge = Utils.byId("live-feed-badge");
+    if (liveFeedBadge) {
+      liveFeedBadge.addEventListener("click", openGeminiModal);
+    }
+
+    const geminiModalEl = Utils.byId("gemini-key-modal");
+    if (geminiModalEl) {
+      geminiModalEl.addEventListener("show.bs.modal", function () {
+        const input = Utils.byId("gemini-key-input");
+        const statusMsg = Utils.byId("gemini-key-status-msg");
+        const key = getGeminiApiKey();
+        if (input) input.value = key;
+        if (statusMsg) {
+          if (key) {
+            statusMsg.style.color = "#00f3a4";
+            statusMsg.textContent = "● Gemini API Key is configured and active.";
+          } else {
+            statusMsg.style.color = "#ff5c5c";
+            statusMsg.textContent = "● Gemini AI is currently OFFLINE (No API Key).";
+          }
+        }
+      });
+    }
+
+    const btnSaveGeminiKey = Utils.byId("btn-save-gemini-key");
+    if (btnSaveGeminiKey) {
+      btnSaveGeminiKey.addEventListener("click", function () {
+        const input = Utils.byId("gemini-key-input");
+        const val = input ? input.value : "";
+        saveGeminiKey(val);
+      });
+    }
+
+    const btnClearGeminiKey = Utils.byId("btn-clear-gemini-key");
+    if (btnClearGeminiKey) {
+      btnClearGeminiKey.addEventListener("click", function () {
+        clearGeminiKey();
+      });
+    }
+
     // Close any expanded asset / certification stacks when clicking outside
     document.addEventListener("click", function (e) {
       if (!e.target.closest(".asset-stack-brick")) {
@@ -1762,27 +1510,8 @@ Return ONLY a valid JSON array of objects using this exact structure:
     });
   }
 
-  /**
-   * Bootstrap the entire application.
-   */
+  // Initialize application on page load
   function init() {
-    // Purge outdated legacy static company caches and any previous Remotive results
-    try {
-      ["elevate_companies", "elevate_companies_v4"].forEach(function (k) {
-        const stored = localStorage.getItem(k);
-        if (stored) {
-          const parsed = JSON.parse(stored);
-          const hasLegacy = Array.isArray(parsed) && parsed.some(function (item) {
-            const name = (item.companyName || item.name || "").toLowerCase();
-            return name.includes("askable") || name.includes("mitre") || name.includes("lemon.io") || name.includes("coalition") || name.includes("iapwe");
-          });
-          if (hasLegacy) {
-            localStorage.removeItem(k);
-          }
-        }
-      });
-    } catch (e) {}
-
     const Auth = root.ElevateAuth;
     if (Auth && typeof Auth.init === "function") {
       Auth.init({
@@ -1800,6 +1529,9 @@ Return ONLY a valid JSON array of objects using this exact structure:
         },
         onSessionChanged: function (sessionUser) {
           applySessionData(sessionUser);
+          if (sessionUser) {
+            showDashboard();
+          }
           if (isRealStudent(sessionUser)) {
             fetchLiveOpportunities();
           } else {
@@ -1816,23 +1548,27 @@ Return ONLY a valid JSON array of objects using this exact structure:
     applySessionData(activeUser);
 
     if (isReal) {
-      // Real student account: load their personal cached live Gemini results
-      let userDrives = null;
-      try {
-        if (activeUser && activeUser.email) {
-          const stored = localStorage.getItem("elevate_companies_" + activeUser.email.toLowerCase());
-          if (stored) userDrives = JSON.parse(stored);
-        }
-        if (!userDrives) {
-          const globalStored = localStorage.getItem("elevate_companies_gemini_2026");
-          if (globalStored) userDrives = JSON.parse(globalStored);
-        }
-      } catch (e) {}
-
-      if (userDrives && userDrives.length > 0) {
-        state.data.companies = userDrives;
+      if (!hasGeminiApiKey()) {
+        state.data.companies = OFFLINE_SAMPLE_COMPANIES.slice();
       } else {
-        state.data.companies = [];
+        // Real student account with key: load their personal cached live Gemini results
+        let userDrives = null;
+        try {
+          if (activeUser && activeUser.email) {
+            const stored = localStorage.getItem("elevate_companies_" + activeUser.email.toLowerCase());
+            if (stored) userDrives = JSON.parse(stored);
+          }
+          if (!userDrives) {
+            const globalStored = localStorage.getItem("elevate_companies_gemini_2026");
+            if (globalStored) userDrives = JSON.parse(globalStored);
+          }
+        } catch (e) {}
+
+        if (userDrives && userDrives.length > 0) {
+          state.data.companies = userDrives;
+        } else {
+          state.data.companies = OFFLINE_SAMPLE_COMPANIES.slice();
+        }
       }
     } else {
       // Demo profile: genuine demo data only
@@ -1842,13 +1578,16 @@ Return ONLY a valid JSON array of objects using this exact structure:
     renderAll();
     bindEvents();
     initStorytelling();
+    updateGeminiBadge();
 
-    // Automatically fetch fresh opportunities newly every time the website is started!
-    // As soon as it finishes fetching, it automatically updates the jobs in the jobs section.
+    // Automatically check if server has Gemini API key in .env and fetch opportunities
     if (typeof fetch === "function") {
-      if (isReal) {
-        fetchLiveOpportunities();
-      }
+      checkServerGeminiStatus().then((hasServerKey) => {
+        updateGeminiBadge();
+        if (isReal && hasGeminiApiKey()) {
+          fetchLiveOpportunities();
+        }
+      });
     }
 
     // If an active session exists, take user straight to the workspace
@@ -1883,15 +1622,20 @@ Return ONLY a valid JSON array of objects using this exact structure:
     renderResources: renderResources,
     showStatusMessage: showStatusMessage,
     fetchLiveOpportunities: fetchLiveOpportunities,
-    fetchFromGeminiApi: fetchFromGeminiApi,
+    fetchFromGeminiApi: fetchLiveOpportunities,
+    openGeminiModal: openGeminiModal,
+    hideGeminiModal: hideGeminiModal,
+    saveGeminiKey: saveGeminiKey,
+    clearGeminiKey: clearGeminiKey,
+    hasGeminiApiKey: hasGeminiApiKey,
+    checkServerGeminiStatus: checkServerGeminiStatus,
     setPillar: setPillar,
     getState: function () { return state; }
   };
 
+  root.ElevateApp = ElevateApp;
+  root.ElevateDashboard = ElevateApp; // Backward compatibility alias
   if (typeof module !== "undefined" && module.exports) {
     module.exports = ElevateApp;
-  } else {
-    root.ElevateApp = ElevateApp;
-    root.ElevateDashboard = ElevateApp; // Backward compatibility alias
   }
 })(typeof window !== "undefined" ? window : globalThis);

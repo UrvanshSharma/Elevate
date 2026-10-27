@@ -1,7 +1,4 @@
-/**
- * MongoDB Database Connection Manager
- * Connects directly to MongoDB / MongoDB Atlas using Mongoose.
- */
+// MongoDB connection and default demo student seeder
 const mongoose = require('mongoose');
 const path = require('path');
 const fs = require('fs');
@@ -22,6 +19,7 @@ function resolveMongoUri() {
   return 'mongodb://127.0.0.1:27017/elevate';
 }
 
+// Seed the default demo student if not already present
 async function seedDefaultUser() {
   try {
     const { User } = require('./models');
@@ -73,6 +71,7 @@ async function seedDefaultUser() {
   }
 }
 
+// Connect to MongoDB using mongoose
 async function connectDb(customUri) {
   const uri = customUri || resolveMongoUri();
 

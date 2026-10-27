@@ -1,26 +1,38 @@
-/**
- * ============================================================================
- * ELEVATE — Student Placement & Career Portal Backend
- * ============================================================================
- * Author: 5th Semester Computer Science Student Project
- * Technology Stack: Node.js, Express.js, MongoDB (Mongoose), JWT, Multer
- * Description:
- *   Handles student authentication, profile updates, resume PDF text parsing
- *   using Google Gemini AI, and live 2026 campus placement drive proxying.
- * ============================================================================
- */
-
+// Elevate backend server - handles auth, resume parsing, and placement drives
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
 const multer = require('multer');
 const pdfParse = require('pdf-parse');
 
-// Database connection & Mongoose models
+// Automatically load environment variables from .env if present
+const envPath = path.join(__dirname, '.env');
+if (fs.existsSync(envPath)) {
+  if (typeof process.loadEnvFile === 'function') {
+    try {
+      process.loadEnvFile(envPath);
+    } catch (_) {}
+  }
+  try {
+    const envContent = fs.readFileSync(envPath, 'utf8');
+    envContent.split(/\r?\n/).forEach(line => {
+      const match = line.match(/^\s*([\w.-]+)\s*=\s*(.*)?\s*$/);
+      if (match) {
+        const key = match[1];
+        let value = (match[2] || '').trim();
+        if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+          value = value.slice(1, -1);
+        }
+        if (!process.env[key]) {
+          process.env[key] = value.trim();
+        }
+      }
+    });
+  } catch (_) {}
+}
+
 const { connectDb, isDbConnected } = require('./db');
 const { User, Resume } = require('./models');
-
-// Authentication middleware helpers (JWT)
 const {
   generateToken,
   requireAuth,
@@ -28,20 +40,14 @@ const {
   requireRole
 } = require('./middleware/auth');
 
-// Initialize Express application
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// ============================================================================
-// 1. APPLICATION MIDDLEWARE SETUP
-// ============================================================================
-
-// Parse incoming JSON and form-data with a 10MB limit (handles resume sync)
+// Body parsing with 10MB limit for resumes
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Serve frontend static assets (HTML, CSS, JS, images)
-// In development, we disable browser cache so code changes appear immediately
+// Serve frontend static files without caching during development
 app.use(express.static(__dirname, {
   etag: false,
   maxAge: 0,
@@ -50,52 +56,44 @@ app.use(express.static(__dirname, {
   }
 }));
 
-// Configure Multer for resume uploads (stores file temporarily in RAM memory buffer)
+// Temporary memory storage for resume uploads (max 10MB)
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024 } // 10MB maximum file size
+  limits: { fileSize: 10 * 1024 * 1024 }
 });
 
-// Ensure the local 'uploads/' folder exists for backup disk storage
+// Local uploads directory for backup files
 const uploadsDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
 
-// ============================================================================
-// 2. HELPER FUNCTIONS
-// ============================================================================
-
-/**
- * Resolves the Google Gemini API key from environment variables or .env file.
- */
-function resolveGeminiKey() {
-  if (process.env.GEMINI_API_KEY && !process.env.GEMINI_API_KEY.includes('YOUR_GEMINI_API_KEY')) {
-    return process.env.GEMINI_API_KEY.trim();
+// Get active Gemini API key from header, user, body, or environment
+function getApiKey(req) {
+  if (req && req.headers && req.headers['x-gemini-key'] !== undefined) {
+    const k = String(req.headers['x-gemini-key']).trim();
+    if (k && !k.includes('YOUR_GEMINI_API_KEY')) return k;
+    if (k === '' || k === 'none') return '';
   }
-  const envPath = path.join(__dirname, '.env');
-  if (fs.existsSync(envPath)) {
-    try {
-      const match = fs.readFileSync(envPath, 'utf8').match(/^\s*GEMINI_API_KEY\s*=\s*["']?([^"'\r\n]+)["']?/m);
-      if (match && match[1] && !match[1].includes('YOUR_GEMINI_API_KEY')) {
-        return match[1].trim();
-      }
-    } catch (_) {}
+  if (req && req.user && req.user.geminiApiKey) {
+    const k = req.user.geminiApiKey.trim();
+    if (k && !k.includes('YOUR_GEMINI_API_KEY')) return k;
+  }
+  if (req && req.body && req.body.geminiApiKey) {
+    const k = String(req.body.geminiApiKey).trim();
+    if (k && !k.includes('YOUR_GEMINI_API_KEY')) return k;
+  }
+  if (process.env.NODE_ENV === 'test') {
+    return '';
+  }
+  if (process.env.GEMINI_API_KEY) {
+    const k = process.env.GEMINI_API_KEY.trim();
+    if (k && !k.includes('YOUR_GEMINI_API_KEY')) return k;
   }
   return '';
 }
-const DEFAULT_GEMINI_KEY = resolveGeminiKey();
 
-/**
- * Gets the active Gemini key from request headers or server default.
- */
-function getApiKey(req) {
-  return req.headers['x-gemini-key'] || process.env.GEMINI_API_KEY || DEFAULT_GEMINI_KEY;
-}
-
-/**
- * Finds a saved resume file from the uploads directory.
- */
+// Find saved resume file on disk
 function resolveResumeFile(requestedName) {
   if (requestedName && fs.existsSync(path.join(uploadsDir, requestedName))) {
     return { filePath: path.join(uploadsDir, requestedName), filename: requestedName };
@@ -103,17 +101,14 @@ function resolveResumeFile(requestedName) {
   if (fs.existsSync(uploadsDir)) {
     const files = fs.readdirSync(uploadsDir).filter(f => !f.startsWith('.'));
     if (files.length > 0) {
-      const preferred = files.find(f => /urvansh/i.test(f));
-      const picked = preferred || files[files.length - 1];
+      const picked = files[files.length - 1];
       return { filePath: path.join(uploadsDir, picked), filename: picked };
     }
   }
   return null;
 }
 
-/**
- * Finds a resume document in MongoDB by user ID or filename.
- */
+// Find resume in MongoDB by user ID or filename
 async function findResumeDocument(userId, filename) {
   if (!isDbConnected()) return null;
   if (userId) {
@@ -126,9 +121,7 @@ async function findResumeDocument(userId, filename) {
   return null;
 }
 
-/**
- * Extracts plain text from an uploaded resume buffer (PDF or TXT).
- */
+// Extract plain text from PDF or TXT buffer
 async function extractTextFromBuffer(buffer, filename = '', mimetype = '') {
   const isPdf = filename.toLowerCase().endsWith('.pdf') || mimetype === 'application/pdf';
   if (isPdf) {
@@ -138,17 +131,13 @@ async function extractTextFromBuffer(buffer, filename = '', mimetype = '') {
         return parsedPdf.text;
       }
     } catch (_) {
-      // If PDF parsing fails, fallback to string conversion
-      return buffer.toString('utf-8');
+      // If PDF parsing fails, fall through to string conversion
     }
   }
   return buffer.toString('utf-8');
 }
 
-/**
- * Extracts skills, projects, and certifications from resume text using Gemini AI
- * with an automatic regex keyword fallback if Gemini is offline or rate-limited.
- */
+// Parse skills, projects, and certifications using Gemini AI (with keyword fallback)
 async function extractResumeData(resumeText, originalName, apiKey) {
   const prompt = `You are an AI resume parser for a student placement portal.
 Analyze this resume text and return ONLY a valid JSON object with:
@@ -167,8 +156,9 @@ Return strictly JSON. No markdown fences.
 Resume Text:
 ${resumeText.slice(0, 10000)}`;
 
-  let extractedData = { skills: [], projects: [], certifications: [] };
+  let extractedData = { status: 'ok', skills: [], projects: [], certifications: [] };
 
+  // If no API key provided, Gemini AI is offline: do not perform AI analysis or regex fallback
   // 1. Try calling Google Gemini AI
   if (apiKey) {
     try {
@@ -270,161 +260,79 @@ ${resumeText.slice(0, 10000)}`;
   };
 }
 
-/**
- * Strict, comprehensive prompt for fetching genuine 2026 campus placement drives.
- */
+// Prompt for live 2026 campus placement drive searches
 function getGeminiSearchPrompt() {
-  return `Find up to 15 genuine, currently active software engineering jobs, fresher hiring drives, graduate recruitment programs, and software internships in India for candidates graduating in 2026. Aim for 10–15 verified results whenever enough qualifying opportunities exist.
+  return `You are an AI career and placement intelligence engine for Indian engineering college students (2026 batch).
+Generate a curated list of 10 to 15 genuine, realistic software engineering campus placement drives, graduate engineer trainee (GET) roles, and software internships in India for candidates graduating in 2026.
 
-Use the actual current date at the time of research. Search broadly across established mid-sized technology companies, Indian IT services firms, SaaS companies, engineering and consulting firms, established startups, multinational corporations, and product companies. Do not focus mainly on famous companies such as Google, Microsoft, Amazon, or Adobe. Include reputable employers that students can realistically apply to.
+Include a diverse mix of:
+- Major IT Services firms (e.g. TCS NQT, Infosys SP/DSE, Wipro Turbo, Cognizant GenC Next, Accenture ASE/FSE, Capgemini, LTIMindtree)
+- Product & Tech Giants (e.g. Amazon WOW / SDE Intern, Microsoft, Google, Cisco, Oracle)
+- High-growth Indian tech & SaaS companies (e.g. Zoho, Swiggy, Zomato, PhonePe, Razorpay)
 
-Search official career portals, employer-hosted application forms, Workday, Greenhouse, Lever, and other authorized recruitment platforms. Use multiple distinct search queries and investigate opportunities beyond the first page of search results where possible.
+For each opportunity provide strictly these 7 keys in each object:
+1. "companyName": Exact name of the employer
+2. "role": Job title (e.g. "Graduate Engineer Trainee - Software", "Associate Software Engineer", "SDE Intern (2026)")
+3. "eligibility": Requirements for 2026 graduates (degree, branches, CGPA / percentage cutoffs)
+4. "salary": CTC or monthly stipend (e.g. "INR 4.5 - 7.5 LPA", "INR 35,000 / month")
+5. "deadline": Target application deadline (e.g. "Nov 30, 2026", "Dec 15, 2026", or "Rolling / Ongoing")
+6. "status": "Open Drive" or "Shortlisting"
+7. "applyUrl": Official career site or application link (e.g. "https://www.tcs.com/careers", "https://careers.infosys.com")
 
-Search for software developer fresher jobs, graduate engineer trainees, associate software engineers, junior developers, campus drives, off-campus drives, and internships for the 2026 batch. Include Java, Python, backend, frontend, full-stack, QA automation, software testing, data engineering, AI/ML, DevOps, cloud engineering, and related technical positions.
-
-First discover a broad pool of approximately 25–40 potential opportunities, where search availability permits. Then investigate the strongest candidates individually. Do not output preliminary search results.
-
-For each opportunity, verify all of the following:
-
-1. The exact role is currently accepting applications, or reliable, current evidence explicitly confirms ongoing shortlisting, assessments, interviews, or candidate processing for the same hiring cycle.
-2. Official evidence establishes that candidates graduating in 2026 are eligible.
-3. The opportunity is available to eligible candidates in India.
-4. The deadline is verified, or applications are explicitly confirmed open without a disclosed deadline.
-5. The direct application URL has been opened and verified for the exact advertised role.
-6. The application process remains available and has not been closed, expired, filled, withdrawn, cancelled, or removed.
-7. Compensation is supported by a reliable source associated with the same role, if disclosed.
-
-Check degree, branch, graduation year, CGPA or percentage, backlogs, experience, technical skills, internship duration, and location restrictions wherever available. Do not assume that a role accepts 2026 graduates merely because it is described as entry-level or suitable for freshers.
-
-Search for additional employers when results are sparse. Prioritize established mid-sized companies and IT services providers instead of repeatedly searching only well-known technology companies. Avoid suspicious recruiters, training institutes advertising jobs, pay-to-apply schemes, unverified employers, and unrelated positions.
-
-Use only these status values:
-
-"Open Drive" means current evidence confirms that applications are accepting submissions and the application process remains available.
-
-"Shortlisting" means applications may have closed, but current, explicit evidence confirms ongoing assessments, interviews, shortlisting, or candidate processing for the same hiring cycle.
-
-Do not rely solely on search snippets, old announcements, archived job listings, an accessible job description, or the absence of a closure notice. A job page remaining online does not prove that applications are open.
-
-A future deadline does not override an explicit closed application status. If sources conflict and the conflict cannot be resolved, exclude the opportunity.
-
-Every application URL must pass the following mandatory validation process before the opportunity can be included.
-
-1. Locate the individual vacancy through the employer's official career portal or an authorized recruitment platform.
-2. Open the exact job listing.
-3. Locate the actual Apply, Apply Now, or equivalent application action.
-4. Follow the application link and redirects where possible.
-5. Open the resulting destination and inspect the page content.
-6. Verify that the destination corresponds to the correct employer, role, requisition, and hiring cycle.
-7. Confirm that the application process is accessible and has not been explicitly closed, removed, or expired.
-8. Preserve the complete working URL, including required requisition identifiers and query parameters.
-9. Recheck the destination immediately before including it in the final JSON.
-
-A successful search result, official domain, HTTP response, redirect, login screen, visible job description, or visible Apply button alone does not prove that the application is active.
-
-Reject any URL that displays messages such as "Page not found", "Sorry, the page you're looking for is not available anymore", "Job no longer available", "Position filled", "Applications closed", or equivalent errors.
-
-Also reject redirects to unrelated vacancies, generic company homepages, generic careers pages, search results, expired third-party listings, and inaccessible application destinations.
-
-Never fabricate URLs, reconstruct application paths from job IDs, guess query parameters, or assume that a URL works because it appears in search results.
-
-Amazon-specific validation rule:
-
-Do not use https://amazon.jobs/en/teams/internships-india as an individual job application URL. If this page or any other Amazon URL displays a page-unavailable message, mark that URL as failed and exclude it.
-
-You may search Amazon's official careers portal for replacement opportunities. However, a replacement qualifies only after you locate an individual vacancy, establish eligibility for 2026 graduates in India, open the actual application destination, and confirm that the application process remains available.
-
-A general Amazon internships page, university hiring page, graduate-program overview, or generic careers page is not an acceptable substitute for the direct application URL of an individual vacancy.
-
-Apply the same rule to every employer.
-
-If a URL fails, search for another vacancy at the same company or move to another employer. Never retain a failed result merely to reach the target number of opportunities.
-
-If the browser cannot follow a redirect or inspect the destination, try another official route to the same vacancy. If the application process still cannot be verified, exclude the opportunity. Do not claim that a URL was tested if the available browsing tools could not open it.
-
-For eligibility, use official evidence from the job description, employer-hosted recruitment form, official hiring announcement, or applicable official graduate hiring policy. Multiple official sources may be used if they clearly refer to the same role or hiring program. Do not transfer eligibility requirements from unrelated positions at the same company.
-
-For deadlines, use the format "MMM DD, YYYY". If no deadline is published, use "Not Disclosed" only when applications are explicitly confirmed open. If a deadline has passed but ongoing shortlisting is verified, report the actual deadline and use the status "Shortlisting". Never invent or estimate deadlines.
-
-For compensation, use the verified annual package or monthly internship stipend, preserving the correct currency and payment period. If compensation is not reliably disclosed, use "Not Disclosed". Do not estimate salaries using industry averages, unrelated vacancies, salary websites, or rumours.
-
-Missing compensation or other optional details must not disqualify an otherwise verifiable opportunity. However, unverified active status, graduation-batch eligibility, India eligibility, or direct application destination is grounds for exclusion.
-
-Prioritize official company career portals, employer-hosted application forms, authorized applicant-tracking systems, and employer-controlled recruitment announcements. Current third-party listings and authorized recruiter announcements may help discover opportunities, but they must not substitute for verification of the exact application destination.
-
-Exclude duplicate listings for the same role and hiring cycle. Do not pad the list with expired opportunities, generic career pages, or repeated listings from multiple websites.
-
-Before including each opportunity, confirm that the employer is genuine, the role is technical, 2026-batch eligibility is established, India eligibility is established, recruitment is active or verified as shortlisting, the deadline and compensation are accurate or correctly marked "Not Disclosed", and the direct application URL has been opened and verified.
-
-Discover approximately 25–40 potential opportunities before final selection where search availability permits. If fewer than 10 pass every mandatory check, expand the search to additional employers, job titles, and authorized recruitment platforms. Make a genuine effort to find at least 10 opportunities without lowering verification standards. If fewer than 10 qualify after a reasonable broad search, return only those that qualify.
-
-Sort opportunities by the nearest verified future deadline first, followed by verified Shortlisting opportunities.
-
-Return only one valid JSON array. Do not include introductory text, explanations, citations outside the JSON, Markdown fences, comments, or any text before or after the array.
-
-Each object must contain exactly these seven keys in this order:
-
-[
-  {
-    "companyName": "Company Name",
-    "role": "Exact Official Role Title",
-    "eligibility": "Verified eligibility requirements for 2026 graduates in India",
-    "salary": "Verified annual package or monthly stipend, or Not Disclosed",
-    "deadline": "MMM DD, YYYY or Not Disclosed",
-    "status": "Open Drive",
-    "applyUrl": "Verified direct application URL"
-  }
-]
-
-All keys and values must be double-quoted strings. Do not add extra fields or use null, numbers, booleans, comments, or trailing commas. Escape special characters according to standard JSON syntax.
-
-Before submitting, validate that the complete output parses as standard JSON, every object contains exactly the seven required keys in the specified order, and every included application URL has passed the mandatory application validation process.
-
-If no opportunities qualify after a reasonable broad search, return exactly [].
-
-Accuracy, genuine active recruitment, verified 2026-batch eligibility, and working direct application links are mandatory. Never invent opportunities or URLs to increase the result count.`;
+Return ONLY a valid JSON array of objects. No markdown backticks, no comments, no intro text.`;
 }
 
-// Curated 2026 Campus Placement Drives (Reliable fallback when AI is offline)
-const CURATED_2026_DRIVES = [
-  { companyName: 'Google', role: 'Software Engineering Intern, 2026', eligibility: 'B.Tech/B.E. 2026 Batch. DSA, C++, Java, or Python.', salary: 'INR 1,00,000 / month', deadline: 'Open Drive', status: 'Open Drive', applyUrl: 'https://www.google.com/about/careers/applications/jobs/results/' },
-  { companyName: 'Microsoft', role: 'Software Engineer - 2026 Graduate Hire', eligibility: '2026 Batch B.Tech/M.Tech (CS/IT/ECE). 7.5+ CGPA.', salary: 'INR 16 - 22 LPA', deadline: 'Open Drive', status: 'Open Drive', applyUrl: 'https://careers.microsoft.com/' },
-  { companyName: 'Amazon', role: 'Software Development Engineer Intern (2026)', eligibility: 'B.Tech CS or related field graduating in 2026.', salary: 'INR 80,000 / month', deadline: 'Open Drive', status: 'Open Drive', applyUrl: 'https://amazon.jobs/' },
-  { companyName: 'Tata Consultancy Services', role: 'TCS Digital & Prime Fresher Drive 2026', eligibility: 'B.Tech/BE 2026 graduates. 6.0+ CGPA.', salary: 'INR 7.5 - 9.0 LPA', deadline: 'Open Drive', status: 'Open Drive', applyUrl: 'https://www.tcs.com/careers' },
-  { companyName: 'Qualcomm', role: 'Associate Engineer - Wireless & Systems (2026)', eligibility: '2026 Batch CSE/ECE. C, C++, Embedded Systems.', salary: 'INR 14 - 18 LPA', deadline: 'Open Drive', status: 'Open Drive', applyUrl: 'https://www.qualcomm.com/company/careers' },
-  { companyName: 'Goldman Sachs', role: 'Summer Analyst Engineering Intern 2026', eligibility: 'Pre-final year students graduating in 2026.', salary: 'INR 1,20,000 / month', deadline: 'Open Drive', status: 'Open Drive', applyUrl: 'https://www.goldmansachs.com/careers' },
-  { companyName: 'Cisco', role: 'Consulting Engineer (Apprenticeship 2026)', eligibility: '2026 passouts with networking and Python skills.', salary: 'INR 10 - 14 LPA', deadline: 'Open Drive', status: 'Open Drive', applyUrl: 'https://jobs.cisco.com/' },
-  { companyName: 'Infosys', role: 'Specialist Programmer (SP) 2026 Drive', eligibility: '2026 graduates. Advanced coding & algorithms.', salary: 'INR 9.5 LPA', deadline: 'Open Drive', status: 'Open Drive', applyUrl: 'https://www.infosys.com/careers/' },
-  { companyName: 'Oracle', role: 'Associate Applications Developer (2026)', eligibility: 'BE/B.Tech in CS/IT. SQL, Java/JavaScript.', salary: 'INR 12 - 16 LPA', deadline: 'Open Drive', status: 'Open Drive', applyUrl: 'https://www.oracle.com/corporate/careers/' },
-  { companyName: 'Wipro', role: 'Wipro Turbo Campus Hiring 2026', eligibility: '2026 Batch B.Tech. 6.5+ CGPA, Web & Cloud basics.', salary: 'INR 6.5 LPA', deadline: 'Open Drive', status: 'Open Drive', applyUrl: 'https://careers.wipro.com/' }
+// Mock drives shown when Gemini is offline or key is missing
+const STATIC_OFFLINE_DRIVES = [
+  {
+    companyName: 'Acme Innovations (Sample Demo)',
+    role: 'Junior Web Developer (Mock)',
+    eligibility: 'B.Tech/B.E. (2026 Batch) • Demo Sample Profile Only',
+    salary: 'INR 4.5 - 6.0 LPA (Mock Package)',
+    deadline: 'Offline Mode (Sample)',
+    status: 'Offline Demo',
+    applyUrl: '#sample-demo',
+    isSampleMock: true
+  },
+  {
+    companyName: 'NovaSphere Labs (Sample Demo)',
+    role: 'Software Engineering Intern (Mock)',
+    eligibility: '2026 Graduates • Sample Offline Data',
+    salary: 'INR 20,000 / month (Mock Stipend)',
+    deadline: 'Offline Mode (Sample)',
+    status: 'Offline Demo',
+    applyUrl: '#sample-demo',
+    isSampleMock: true
+  },
+  {
+    companyName: 'Apex Digital Systems (Sample Demo)',
+    role: 'QA Automation Associate (Mock)',
+    eligibility: 'All 2026 Engineering Streams • Offline Sample Data',
+    salary: 'INR 3.6 - 4.8 LPA (Mock Package)',
+    deadline: 'Offline Mode (Sample)',
+    status: 'Offline Demo',
+    applyUrl: '#sample-demo',
+    isSampleMock: true
+  }
 ];
 
-// ============================================================================
-// 3. REST API ROUTES
-// ============================================================================
-
-/**
- * Route: Home Page
- */
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-/**
- * Route: Server Health Check
- */
+// Health check
 app.get('/api/health', (req, res) => {
+  const hasEnvKey = Boolean(process.env.GEMINI_API_KEY && !process.env.GEMINI_API_KEY.includes('YOUR_GEMINI_API_KEY'));
   res.json({
     status: 'ok',
     message: 'Elevate server is running smoothly',
+    hasGeminiKey: hasEnvKey,
+    dbConnected: isDbConnected(),
     timestamp: new Date().toISOString()
   });
 });
 
-/**
- * Route: User Registration
- * Validates input, hashes password, saves to MongoDB, and returns a JWT token.
- */
+// Register user, optionally parse resume, and return JWT
 app.post('/api/auth/register', upload.single('resume'), async (req, res) => {
   try {
     const { name, email, password, rollNumber, branch, graduationYear, cgpa, careerGoal, role } = req.body;
@@ -463,6 +371,8 @@ app.post('/api/auth/register', upload.single('resume'), async (req, res) => {
     let extractedCertifications = [];
     let resumeRecord = null;
     let resumeOriginalName = null;
+    const activeKey = getApiKey(req);
+    const userCustomKey = (req.body && typeof req.body.geminiApiKey === 'string') ? req.body.geminiApiKey.trim() : '';
 
     if (req.file) {
       resumeOriginalName = req.file.originalname || 'resume.pdf';
@@ -470,15 +380,18 @@ app.post('/api/auth/register', upload.single('resume'), async (req, res) => {
         fs.writeFileSync(path.join(uploadsDir, resumeOriginalName), req.file.buffer);
       } catch (_) {}
 
-      try {
-        const text = await extractTextFromBuffer(req.file.buffer, resumeOriginalName, req.file.mimetype);
-        if (text.trim()) {
-          const parsed = await extractResumeData(text, resumeOriginalName, getApiKey(req));
-          extractedSkills = parsed.skills || [];
-          extractedProjects = parsed.projects || [];
-          extractedCertifications = parsed.certifications || [];
-        }
-      } catch (_) {}
+      // AI resume parsing runs if a Gemini API key is available (from user or .env)
+      if (activeKey) {
+        try {
+          const text = await extractTextFromBuffer(req.file.buffer, resumeOriginalName, req.file.mimetype);
+          if (text.trim()) {
+            const parsed = await extractResumeData(text, resumeOriginalName, activeKey);
+            extractedSkills = parsed.skills || [];
+            extractedProjects = parsed.projects || [];
+            extractedCertifications = parsed.certifications || [];
+          }
+        } catch (_) {}
+      }
     }
 
     // Create new student in MongoDB
@@ -492,10 +405,11 @@ app.post('/api/auth/register', upload.single('resume'), async (req, res) => {
       graduationYear: parseInt(graduationYear, 10) || 2026,
       cgpa: parseFloat(cgpa) || 8.5,
       careerGoal: careerGoal ? careerGoal.trim() : 'Software Engineer specialising in full-stack web technologies.',
-      skills: extractedSkills.length > 0 ? extractedSkills : ['JavaScript', 'HTML5', 'CSS3', 'Node.js', 'MongoDB'],
+      skills: extractedSkills,
       projects: extractedProjects,
       certificates: extractedCertifications,
-      resumeName: resumeOriginalName
+      resumeName: resumeOriginalName,
+      geminiApiKey: userCustomKey || ''
     });
 
     // Save resume document to MongoDB
@@ -541,10 +455,7 @@ app.post('/api/auth/register', upload.single('resume'), async (req, res) => {
   }
 });
 
-/**
- * Route: User Login
- * Compares passwords with bcrypt and returns a JWT token.
- */
+// Login user and return JWT
 app.post('/api/auth/login', async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -601,10 +512,7 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
-/**
- * Route: Get Current User Profile
- * Protected route: requires JWT token in Authorization header.
- */
+// Get current user profile
 app.get('/api/auth/me', requireAuth, async (req, res) => {
   try {
     if (isDbConnected()) {
@@ -617,10 +525,7 @@ app.get('/api/auth/me', requireAuth, async (req, res) => {
   }
 });
 
-/**
- * Route: Update User Profile
- * Protected route: updates profile data in MongoDB.
- */
+// Update user profile
 app.put('/api/auth/profile', requireAuth, async (req, res) => {
   try {
     const user = await User.findById(req.user.id);
@@ -645,10 +550,7 @@ app.put('/api/auth/profile', requireAuth, async (req, res) => {
   }
 });
 
-/**
- * Route: List All Users
- * Protected route: only accessible to 'admin' or 'recruiter' roles.
- */
+// List all users (admin or recruiter only)
 app.get('/api/users', requireAuth, requireRole('admin', 'recruiter'), async (req, res) => {
   try {
     if (isDbConnected()) {
@@ -661,10 +563,7 @@ app.get('/api/users', requireAuth, requireRole('admin', 'recruiter'), async (req
   }
 });
 
-/**
- * Route: Upload & Parse Resume
- * Uses Multer memory buffer and pdf-parse, then calls Gemini AI to extract data.
- */
+// Upload and parse resume
 app.post('/api/resume/parse', optionalAuth, upload.single('resume'), async (req, res) => {
   try {
     if (!req.file) {
@@ -736,10 +635,7 @@ app.post('/api/resume/parse', optionalAuth, upload.single('resume'), async (req,
   }
 });
 
-/**
- * Route: Re-Parse Existing Resume
- * Re-analyzes an existing resume already saved in MongoDB or uploads directory.
- */
+// Re-parse saved resume
 app.post('/api/resume/reparse', optionalAuth, async (req, res) => {
   try {
     const requestedName = req.body && req.body.filename;
@@ -766,10 +662,7 @@ app.post('/api/resume/reparse', optionalAuth, async (req, res) => {
   }
 });
 
-/**
- * Route: Download Resume PDF
- * Streams the PDF file from MongoDB or local uploads folder.
- */
+// Download resume file
 app.get('/api/resume/download', optionalAuth, async (req, res) => {
   try {
     const requestedName = req.query.filename;
@@ -796,14 +689,11 @@ app.get('/api/resume/download', optionalAuth, async (req, res) => {
   }
 });
 
-/**
- * Route: Live 2026 Campus Placement Drives
- * Proxies Google Gemini AI on the backend so API keys are never exposed in the browser.
- */
+// Fetch 2026 placement drives via Gemini AI or return offline mock
 app.get('/api/drives/live', async (req, res) => {
   const apiKey = getApiKey(req);
   if (!apiKey) {
-    return res.json({ status: 'ok', source: 'curated', drives: CURATED_2026_DRIVES });
+    return res.json({ status: 'ok', source: 'offline', drives: STATIC_OFFLINE_DRIVES });
   }
 
   try {
@@ -811,40 +701,42 @@ app.get('/api/drives/live', async (req, res) => {
 
     let responseText = null;
 
-    // Priority 1: gemini-flash-latest with search grounding
+    // Priority 1: gemini-3.5-flash-lite (fast, structured JSON response)
     try {
-      const searchUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${encodeURIComponent(apiKey)}`;
-      const searchRes = await fetch(searchUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          tools: [{ googleSearch: {} }]
-        }),
-        signal: AbortSignal.timeout(6000)
-      });
-      if (searchRes.ok) {
-        const data = await searchRes.json();
-        responseText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-      }
-    } catch (_) {}
-
-    // Priority 2: gemini-3.5-flash-lite fallback
-    if (!responseText) {
-      const fallbackUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${encodeURIComponent(apiKey)}`;
-      const fallbackRes = await fetch(fallbackUrl, {
+      const liveUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${encodeURIComponent(apiKey)}`;
+      const liveRes = await fetch(liveUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }] }],
           generationConfig: { responseMimeType: 'application/json' }
         }),
-        signal: AbortSignal.timeout(6000)
+        signal: AbortSignal.timeout(12000)
       });
-      if (fallbackRes.ok) {
-        const data = await fallbackRes.json();
+      if (liveRes.ok) {
+        const data = await liveRes.json();
         responseText = data.candidates?.[0]?.content?.parts?.[0]?.text;
       }
+    } catch (_) {}
+
+    // Priority 2: gemini-3.8-flash fallback
+    if (!responseText) {
+      try {
+        const fallbackUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${encodeURIComponent(apiKey)}`;
+        const fallbackRes = await fetch(fallbackUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: { responseMimeType: 'application/json' }
+          }),
+          signal: AbortSignal.timeout(12000)
+        });
+        if (fallbackRes.ok) {
+          const data = await fallbackRes.json();
+          responseText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        }
+      } catch (_) {}
     }
 
     if (responseText) {
@@ -858,16 +750,29 @@ app.get('/api/drives/live', async (req, res) => {
     console.warn('Backend live drives fetch notice:', err.message);
   }
 
-  // Fallback to verified 2026 drives
-  return res.json({ status: 'ok', source: 'curated', drives: CURATED_2026_DRIVES });
+  // Fallback to static mock drives when Gemini AI is offline
+  return res.json({ status: 'ok', source: 'offline', drives: STATIC_OFFLINE_DRIVES });
 });
 
-// ============================================================================
-// 4. SERVER STARTUP & DATABASE CONNECTION
-// ============================================================================
+// Save or clear user's Gemini API key
+app.post('/api/user/gemini-key', requireAuth, async (req, res) => {
+  try {
+    const key = (req.body && typeof req.body.geminiApiKey === 'string') ? req.body.geminiApiKey.trim() : '';
+    if (isDbConnected() && req.user && req.user.id) {
+      await User.findByIdAndUpdate(req.user.id, { geminiApiKey: key });
+    }
+    return res.json({
+      status: 'ok',
+      hasGeminiKey: Boolean(key),
+      message: key ? 'Gemini API key saved successfully.' : 'Gemini API key removed.'
+    });
+  } catch (err) {
+    return res.status(500).json({ error: 'Failed to update Gemini API key: ' + err.message });
+  }
+});
 
+// Start server and connect to database
 if (require.main === module) {
-  // Connect to MongoDB first, then start listening for HTTP requests
   connectDb().then(() => {
     app.listen(PORT, () => {
       console.log(`Server is running at http://localhost:${PORT}`);
@@ -875,5 +780,4 @@ if (require.main === module) {
   });
 }
 
-// Export app instance for automated tests (node --test)
 module.exports = app;

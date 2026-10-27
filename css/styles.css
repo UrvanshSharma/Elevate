@@ -1495,6 +1495,26 @@ body::-webkit-scrollbar {
   padding: 4px 12px;
   border-radius: 999px;
   line-height: 1.2;
+  transition: all 0.2s ease;
+}
+
+.badge-live-gemini.badge-offline {
+  color: #ff5c5c;
+  background: rgba(255, 92, 92, 0.1);
+  border-color: rgba(255, 92, 92, 0.3);
+}
+
+.live-dot-offline {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #ff5c5c;
+  display: inline-block;
+  box-shadow: 0 0 6px rgba(255, 92, 92, 0.6);
+}
+
+.cursor-pointer {
+  cursor: pointer;
 }
 
 /* Search Bar & Sync Controls in Placements */
